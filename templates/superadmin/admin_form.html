@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Add Admin{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="card p-4">
+      <h4 class="mb-3">Add Admin for {{ church.name }}</h4>
+      <form method="post">
+        <div class="mb-3">
+          <label class="form-label">Full Name</label>
+          <input type="text" class="form-control" name="full_name">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Username *</label>
+          <input type="text" class="form-control" name="username" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Password *</label>
+          <input type="text" class="form-control" name="password" required>
+          <div class="form-text">Share this securely with the admin. They can be given a new one anytime.</div>
+        </div>
+        <button class="btn btn-primary" type="submit">Create Admin</button>
+        <a href="{{ url_for('superadmin_church_detail', church_id=church.id) }}" class="btn btn-light">Cancel</a>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

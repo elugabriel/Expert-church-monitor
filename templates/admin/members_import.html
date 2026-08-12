@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Import Members{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h3><i class="bi bi-file-earmark-arrow-up"></i> Import Existing Members</h3>
+  <a href="{{ url_for('admin_members') }}" class="btn btn-light">Back to Members</a>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-7">
+    <div class="card p-4">
+      <h5 class="mb-3">Upload a CSV or Excel (.xlsx) file</h5>
+      <form method="post" enctype="multipart/form-data">
+        <div class="mb-3">
+          <input type="file" class="form-control" name="import_file" accept=".csv,.xlsx" required>
+        </div>
+        <button class="btn btn-primary" type="submit"><i class="bi bi-upload"></i> Import Members</button>
+        <a href="{{ url_for('admin_import_template') }}" class="btn btn-outline-secondary">
+          <i class="bi bi-download"></i> Download CSV Template
+        </a>
+      </form>
+    </div>
+
+    {% if results %}
+    <div class="card p-4 mt-3">
+      <h5 class="mb-3">Import Results</h5>
+      <p class="mb-2">
+        <span class="badge bg-success">{{ results.imported }} imported</span>
+        {% if results.errors %}<span class="badge bg-warning text-dark">{{ results.errors|length }} skipped</span>{% endif %}
+      </p>
+      {% if results.errors %}
+      <div class="table-responsive" style="max-height:320px; overflow:auto;">
+        <table class="table table-sm">
+          <thead><tr><th>Row</th><th>Reason</th></tr></thead>
+          <tbody>
+          {% for row_num, reason in results.errors %}
+            <tr><td>{{ row_num }}</td><td>{{ reason }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="col-md-5">
+    <div class="card p-3">
+      <h5><i class="bi bi-info-circle"></i> File Format</h5>
+      <p class="text-muted small">
+        Both <code>.csv</code> and Excel <code>.xlsx</code> files work the same way.
+        The first row must be a header. Only <code>full_name</code> is required —
+        everything else is optional.
+      </p>
+      <table class="table table-sm">
+        <thead><tr><th>Column</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><code>full_name</code></td><td>Required</td></tr>
+          <tr><td><code>gender</code></td><td>Male / Female</td></tr>
+          <tr><td><code>dob_day</code></td><td>Birthday day, 1&ndash;31</td></tr>
+          <tr><td><code>dob_month</code></td><td>Birthday month — number (1&ndash;12) or name (e.g. August)</td></tr>
+          <tr><td><code>phone</code></td><td></td></tr>
+          <tr><td><code>email</code></td><td></td></tr>
+          <tr><td><code>address</code></td><td></td></tr>
+          <tr><td><code>status</code></td><td><code>member</code> or <code>first_timer</code> (default: member)</td></tr>
+          <tr><td><code>member_number</code></td><td>Leave blank to auto-generate one</td></tr>
+        </tbody>
+      </table>
+      <p class="text-muted small mb-0">
+        No birth year column on purpose — only day and month are ever collected.
+        Rows missing a name, or with a member number that's already taken, are
+        skipped and listed after import — the rest of the file still goes through.
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

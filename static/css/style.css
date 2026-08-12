@@ -1,0 +1,43 @@
+/* Expert Church Monitoring System - custom styles (layered on top of Bootstrap) */
+
+body { background: #f4f6f9; }
+
+.navbar-brand { font-weight: 700; letter-spacing: .3px; }
+
+.card {
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .08);
+  border-radius: 14px;
+}
+
+.stat-card { border-radius: 16px; color: #fff; }
+.stat-card h2 { font-weight: 700; margin-bottom: 0; }
+
+.table thead th {
+  border-bottom-width: 1px;
+  font-size: .8rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #6c757d;
+}
+
+.badge-locked { background: #dc3545; }
+.badge-unlocked { background: #198754; }
+
+.church-logo {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 10px;
+  background: #eee;
+}
+
+.member-photo {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 50%;
+  background: #eee;
+}
+
+footer { color: #8a94a6; font-size: .85rem; }

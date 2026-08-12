@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}{{ church.name }}{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center gap-3 mb-4">
+  {% if church.logo_filename %}
+    <img src="{{ url_for('uploaded_file', filename=church.logo_filename) }}" class="church-logo" style="width:72px;height:72px;">
+  {% else %}
+    <div class="church-logo d-flex align-items-center justify-content-center" style="width:72px;height:72px;"><i class="bi bi-building fs-3"></i></div>
+  {% endif %}
+  <div class="flex-grow-1">
+    <h3 class="mb-0">{{ church.name }} <span class="badge bg-secondary">{{ church.code }}</span></h3>
+    <div class="text-muted">{{ church.pastor_name or 'No pastor set' }} &middot; {{ church.phone or '' }} {{ church.email or '' }}</div>
+  </div>
+  <a href="{{ url_for('superadmin_edit_church', church_id=church.id) }}" class="btn btn-outline-secondary btn-sm">Edit</a>
+  <form method="post" action="{{ url_for('superadmin_delete_church', church_id=church.id) }}"
+        onsubmit="return confirm('Delete {{ church.name }} and ALL its admins, members and attendance records? This cannot be undone.');">
+    <button class="btn btn-outline-danger btn-sm">Delete Church</button>
+  </form>
+</div>
+
+{% if church.description %}<p class="text-muted">{{ church.description }}</p>{% endif %}
+{% if church.address %}<p><i class="bi bi-geo-alt"></i> {{ church.address }}</p>{% endif %}
+
+<div class="row g-3 mb-3">
+  <div class="col-md-6">
+    <div class="card stat-card p-3" style="background:#0f9d76;">
+      <div class="small">Members</div><h2>{{ church.members|length }}</h2>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card stat-card p-3" style="background:#2c3e91;">
+      <div class="small">Admins</div><h2>{{ church.admins|length }}</h2>
+    </div>
+  </div>
+</div>
+
+<div class="card p-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Admins for this church</h5>
+    <a href="{{ url_for('superadmin_new_admin', church_id=church.id) }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Add Admin</a>
+  </div>
+  <table class="table">
+    <thead><tr><th>Username</th><th>Full Name</th><th>Created</th><th></th></tr></thead>
+    <tbody>
+    {% for a in church.admins %}
+      <tr>
+        <td>{{ a.username }}</td>
+        <td>{{ a.full_name or '-' }}</td>
+        <td>{{ a.created_at.strftime('%d %b %Y') if a.created_at else '-' }}</td>
+        <td class="text-end">
+          <form method="post" action="{{ url_for('superadmin_delete_admin', admin_id=a.id) }}"
+                onsubmit="return confirm('Remove admin {{ a.username }}?');" class="d-inline">
+            <button class="btn btn-sm btn-outline-danger">Remove</button>
+          </form>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4" class="text-center text-muted py-3">No admins yet for this church.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

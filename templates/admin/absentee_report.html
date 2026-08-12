@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Absentee Report{% endblock %}
+{% block content %}
+<h3 class="mb-4"><i class="bi bi-clipboard-x"></i> Absentee Report</h3>
+<div class="card p-3 mb-4">
+  <form method="get" class="row g-3 align-items-end">
+    <div class="col-md-4">
+      <label class="form-label">From</label>
+      <input type="date" class="form-control" name="start" value="{{ start }}" required>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">To</label>
+      <input type="date" class="form-control" name="end" value="{{ end }}" required>
+    </div>
+    <div class="col-md-4">
+      <button class="btn btn-primary w-100" type="submit">Generate Report</button>
+    </div>
+  </form>
+</div>
+
+{% if results is not none %}
+<div class="card p-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Absent from {{ start }} to {{ end }} &middot; {{ results|length }} member(s)</h5>
+    <a class="btn btn-outline-success btn-sm" href="{{ url_for('admin_absentee_report', start=start, end=end, export=1) }}">
+      <i class="bi bi-download"></i> Export CSV
+    </a>
+  </div>
+  <div class="table-responsive">
+  <table class="table">
+    <thead><tr><th>Number</th><th>Name</th><th>Phone</th><th>Email</th><th>Last Attended</th></tr></thead>
+    <tbody>
+    {% for m, last in results %}
+      <tr>
+        <td><span class="badge bg-dark">{{ m.member_number }}</span></td>
+        <td>{{ m.full_name }}</td>
+        <td>{{ m.phone or '-' }}</td>
+        <td>{{ m.email or '-' }}</td>
+        <td>{{ last.strftime('%d %b %Y') if last else 'Never' }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5" class="text-center text-muted py-4">Nobody was absent in this range. 🎉</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

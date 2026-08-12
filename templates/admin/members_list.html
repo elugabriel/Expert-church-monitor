@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Members{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <h3 class="mb-0">Members</h3>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('admin_import_members') }}" class="btn btn-outline-primary"><i class="bi bi-file-earmark-arrow-up"></i> Import from CSV</a>
+    <a href="{{ url_for('admin_new_member') }}" class="btn btn-primary"><i class="bi bi-person-plus"></i> Register First Timer</a>
+  </div>
+</div>
+<form method="get" class="mb-3">
+  <div class="input-group" style="max-width:400px;">
+    <input type="text" class="form-control" name="q" value="{{ q or '' }}" placeholder="Search name or member number">
+    <button class="btn btn-outline-secondary">Search</button>
+  </div>
+</form>
+<div class="card p-3">
+  <div class="table-responsive">
+  <table class="table align-middle">
+    <thead><tr><th></th><th>Number</th><th>Name</th><th>Status</th><th>Birthday</th><th>Phone</th><th>Edit Lock</th><th></th></tr></thead>
+    <tbody>
+    {% for m in members %}
+      <tr>
+        <td>
+          {% if m.photo_filename %}
+            <img src="{{ url_for('uploaded_file', filename=m.photo_filename) }}" class="member-photo">
+          {% else %}
+            <div class="member-photo d-flex align-items-center justify-content-center"><i class="bi bi-person"></i></div>
+          {% endif %}
+        </td>
+        <td><span class="badge bg-dark">{{ m.member_number }}</span></td>
+        <td>{{ m.full_name }}</td>
+        <td>{% if m.status == 'first_timer' %}<span class="badge bg-warning text-dark">First Timer</span>{% else %}<span class="badge bg-success">Member</span>{% endif %}</td>
+        <td>{{ m.date_of_birth.strftime('%d %b') if m.date_of_birth else '-' }}</td>
+        <td>{{ m.phone or '-' }}</td>
+        <td>
+          {% if m.is_editable %}
+            <span class="badge badge-unlocked">Unlocked</span>
+          {% else %}
+            <span class="badge badge-locked">Locked</span>
+          {% endif %}
+        </td>
+        <td class="text-end">
+          <a href="{{ url_for('admin_edit_member', member_id=m.id) }}" class="btn btn-sm btn-outline-primary">View / Edit</a>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="8" class="text-center text-muted py-4">No members found.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="text-muted small mb-0 mt-2"><i class="bi bi-info-circle"></i> Editing for all members is turned on/off from the <a href="{{ url_for('admin_dashboard') }}">Dashboard</a>.</p>
+</div>
+{% endblock %}

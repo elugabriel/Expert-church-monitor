@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Churches{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h3><i class="bi bi-building"></i> Churches</h3>
+  <a href="{{ url_for('superadmin_new_church') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Add Church</a>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="card stat-card p-3" style="background:#2c3e91;">
+      <div class="small">Total Churches</div>
+      <h2>{{ churches|length }}</h2>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card stat-card p-3" style="background:#0f9d76;">
+      <div class="small">Total Admins</div>
+      <h2>{{ total_admins }}</h2>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card stat-card p-3" style="background:#c0392b;">
+      <div class="small">Total Members</div>
+      <h2>{{ total_members }}</h2>
+    </div>
+  </div>
+</div>
+
+<div class="card p-3">
+  <div class="table-responsive">
+  <table class="table align-middle">
+    <thead><tr><th></th><th>Church</th><th>Code</th><th>Pastor</th><th>Admins</th><th>Members</th><th></th></tr></thead>
+    <tbody>
+      {% for c in churches %}
+      <tr>
+        <td>
+          {% if c.logo_filename %}
+            <img class="church-logo" src="{{ url_for('uploaded_file', filename=c.logo_filename) }}">
+          {% else %}
+            <div class="church-logo d-flex align-items-center justify-content-center"><i class="bi bi-building"></i></div>
+          {% endif %}
+        </td>
+        <td><a href="{{ url_for('superadmin_church_detail', church_id=c.id) }}">{{ c.name }}</a></td>
+        <td><span class="badge bg-secondary">{{ c.code }}</span></td>
+        <td>{{ c.pastor_name or '-' }}</td>
+        <td>{{ c.admins|length }}</td>
+        <td>{{ c.members|length }}</td>
+        <td class="text-end">
+          <a href="{{ url_for('superadmin_church_detail', church_id=c.id) }}" class="btn btn-sm btn-outline-primary">Manage</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="text-center text-muted py-4">No churches yet. Add the first one.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

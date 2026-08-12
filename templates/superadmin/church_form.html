@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit Church' if church else 'Add Church' }}{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-7">
+    <div class="card p-4">
+      <h4 class="mb-3">{{ 'Edit Church' if church else 'Add New Church' }}</h4>
+      <form method="post" enctype="multipart/form-data">
+        <div class="mb-3">
+          <label class="form-label">Church Name *</label>
+          <input type="text" class="form-control" name="name" value="{{ church.name if church else '' }}" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Short Code * <small class="text-muted">(used as prefix for member numbers, e.g. STP)</small></label>
+          <input type="text" class="form-control text-uppercase" name="code" value="{{ church.code if church else '' }}" maxlength="10" required {{ 'readonly' if church else '' }}>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Pastor's Name</label>
+          <input type="text" class="form-control" name="pastor_name" value="{{ church.pastor_name if church else '' }}">
+        </div>
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Phone</label>
+            <input type="text" class="form-control" name="phone" value="{{ church.phone if church else '' }}">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Email</label>
+            <input type="email" class="form-control" name="email" value="{{ church.email if church else '' }}">
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Address</label>
+          <input type="text" class="form-control" name="address" value="{{ church.address if church else '' }}">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Description</label>
+          <textarea class="form-control" name="description" rows="3">{{ church.description if church else '' }}</textarea>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Church Logo</label>
+          {% if church and church.logo_filename %}
+            <div class="mb-2"><img src="{{ url_for('uploaded_file', filename=church.logo_filename) }}" class="church-logo"></div>
+          {% endif %}
+          <input type="file" class="form-control" name="logo" accept="image/*">
+        </div>
+        <button class="btn btn-primary" type="submit">Save Church</button>
+        <a href="{{ url_for('superadmin_dashboard') }}" class="btn btn-light">Cancel</a>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
