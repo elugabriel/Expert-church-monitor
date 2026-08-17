@@ -69,7 +69,10 @@
       "Bash(./venv/Scripts/python.exe -c ' *)",
       "Bash(curl -s -b ad.txt -F \"import_file=@C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-user-Documents-church-attendance\\\\59f26afe-69aa-49e0-ae0f-3d82cac0567a\\\\scratchpad\\\\test_members.xlsx;type=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\" http://127.0.0.1:5000/admin/members/import -o xlsx_result.html -w \"%{http_code}\\\\n\")",
       "Bash(curl -s -b ad.txt -F \"import_file=@csvtest.csv;type=text/csv\" http://127.0.0.1:5000/admin/members/import -o csv_result.html)",
-      "Bash(curl -s -b ad.txt -F \"import_file=@bad.txt;type=text/plain\" http://127.0.0.1:5000/admin/members/import -L)"
+      "Bash(curl -s -b ad.txt -F \"import_file=@bad.txt;type=text/plain\" http://127.0.0.1:5000/admin/members/import -L)",
+      "Bash(rm -rf __pycache__)",
+      "Bash(SECRET_KEY=test PORT=5050 timeout 8 ./venv/Scripts/python.exe app.py)",
+      "Bash(powershell -NoProfile -Command 'Get-CimInstance Win32_Process -Filter \"Name='\\\\''python.exe'\\\\''\" | Where-Object { $_.CommandLine -like '\\\\''*church attendance*'\\\\'' } | Select-Object ProcessId, CommandLine')"
     ]
   }
 }
