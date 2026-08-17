@@ -3,8 +3,8 @@
 {% block content %}
 <div class="card p-4">
   <div class="d-flex align-items-center gap-3 mb-3">
-    {% if church.logo_filename %}
-      <img src="{{ url_for('uploaded_file', filename=church.logo_filename) }}" class="church-logo" style="width:80px;height:80px;">
+    {% if church.logo_data %}
+      <img src="{{ url_for('church_logo', church_id=church.id) }}" class="church-logo" style="width:80px;height:80px;">
     {% else %}
       <div class="church-logo d-flex align-items-center justify-content-center" style="width:80px;height:80px;"><i class="bi bi-building fs-2"></i></div>
     {% endif %}

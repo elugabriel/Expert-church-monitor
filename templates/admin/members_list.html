@@ -22,8 +22,8 @@
     {% for m in members %}
       <tr>
         <td>
-          {% if m.photo_filename %}
-            <img src="{{ url_for('uploaded_file', filename=m.photo_filename) }}" class="member-photo">
+          {% if m.photo_data %}
+            <img src="{{ url_for('member_photo', member_id=m.id) }}" class="member-photo">
           {% else %}
             <div class="member-photo d-flex align-items-center justify-content-center"><i class="bi bi-person"></i></div>
           {% endif %}
@@ -42,6 +42,10 @@
         </td>
         <td class="text-end">
           <a href="{{ url_for('admin_edit_member', member_id=m.id) }}" class="btn btn-sm btn-outline-primary">View / Edit</a>
+          <form method="post" action="{{ url_for('admin_delete_member', member_id=m.id) }}" class="d-inline"
+                onsubmit="return confirm('Remove {{ m.full_name }} ({{ m.member_number }}) from the church list? This also deletes their attendance history and cannot be undone.');">
+            <button class="btn btn-sm btn-outline-danger">Delete</button>
+          </form>
         </td>
       </tr>
     {% else %}

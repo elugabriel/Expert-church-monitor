@@ -21,7 +21,6 @@ Deploy:
 import os
 import io
 import csv
-import uuid
 import secrets
 import click
 from functools import wraps
@@ -29,7 +28,7 @@ from datetime import datetime, date
 
 from flask import (
     Flask, request, redirect, url_for, flash, render_template,
-    abort, Response, send_from_directory
+    abort, Response
 )
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import (
@@ -64,10 +63,13 @@ app.config["SQLALCHEMY_DATABASE_URI"] = _db_url
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True}
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = 3 * 1024 * 1024  # 3 MB uploads
+
+# Church logos and member photos are stored as bytes in the database (see the
+# Church/Member models below) rather than saved to local disk. Hosts like
+# Render wipe the local filesystem on every deploy/restart, so a disk-based
+# upload folder would lose every image — storing them in the same persistent
+# database as everything else means they survive restarts too.
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
 
@@ -94,7 +96,8 @@ class Church(db.Model):
     email = db.Column(db.String(120))
     pastor_name = db.Column(db.String(120))
     description = db.Column(db.Text)
-    logo_filename = db.Column(db.String(255))
+    logo_data = db.Column(db.LargeBinary)
+    logo_mimetype = db.Column(db.String(100))
     next_seq = db.Column(db.Integer, default=1, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -136,7 +139,8 @@ class Member(db.Model):
     phone = db.Column(db.String(50))
     email = db.Column(db.String(120))
     address = db.Column(db.String(255))
-    photo_filename = db.Column(db.String(255))
+    photo_data = db.Column(db.LargeBinary)
+    photo_mimetype = db.Column(db.String(100))
     status = db.Column(db.String(20), default="first_timer")  # first_timer / member
     is_editable = db.Column(db.Boolean, default=False, nullable=False)
     joined_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -189,17 +193,28 @@ def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-def save_upload(file_storage):
-    """Save an uploaded image with a random filename. Returns filename or None."""
+EXT_TO_MIMETYPE = {
+    "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+    "gif": "image/gif", "webp": "image/webp",
+}
+
+
+def read_upload(file_storage):
+    """Read an uploaded image into memory for storage in the database.
+    Returns (bytes, mimetype), or (None, None) if nothing valid was uploaded."""
     if not file_storage or file_storage.filename == "":
-        return None
+        return None, None
     if not allowed_file(file_storage.filename):
         flash("Only image files (png, jpg, jpeg, gif, webp) are allowed.", "danger")
-        return None
+        return None, None
     ext = secure_filename(file_storage.filename).rsplit(".", 1)[1].lower()
-    fname = f"{uuid.uuid4().hex}.{ext}"
-    file_storage.save(os.path.join(app.config["UPLOAD_FOLDER"], fname))
-    return fname
+    data = file_storage.read()
+    if not data:
+        return None, None
+    mimetype = file_storage.mimetype
+    if not mimetype or mimetype == "application/octet-stream":
+        mimetype = EXT_TO_MIMETYPE.get(ext, "application/octet-stream")
+    return data, mimetype
 
 
 def parse_date(value, default=None):
@@ -298,9 +313,32 @@ def logout():
     return redirect(url_for("login"))
 
 
-@app.route("/uploads/<path:filename>")
-def uploaded_file(filename):
-    return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
+@app.route("/church-logo/<int:church_id>")
+@login_required
+def church_logo(church_id):
+    church = Church.query.get_or_404(church_id)
+    is_own_church = current_user.role == "admin" and current_user.church_id == church.id
+    if not (current_user.role == "superadmin" or is_own_church):
+        abort(403)
+    if not church.logo_data:
+        abort(404)
+    resp = Response(church.logo_data, mimetype=church.logo_mimetype or "image/png")
+    resp.headers["Cache-Control"] = "private, max-age=3600"
+    return resp
+
+
+@app.route("/member-photo/<int:member_id>")
+@login_required
+def member_photo(member_id):
+    member = Member.query.get_or_404(member_id)
+    is_own_church = current_user.role == "admin" and current_user.church_id == member.church_id
+    if not (current_user.role == "superadmin" or is_own_church):
+        abort(403)
+    if not member.photo_data:
+        abort(404)
+    resp = Response(member.photo_data, mimetype=member.photo_mimetype or "image/png")
+    resp.headers["Cache-Control"] = "private, max-age=3600"
+    return resp
 
 
 # ---------------------------------------------------------------------------
@@ -338,10 +376,10 @@ def superadmin_new_church():
                 address=request.form.get("address", "").strip(),
                 description=request.form.get("description", "").strip(),
             )
-            logo = request.files.get("logo")
-            fname = save_upload(logo)
-            if fname:
-                church.logo_filename = fname
+            logo_data, logo_mimetype = read_upload(request.files.get("logo"))
+            if logo_data:
+                church.logo_data = logo_data
+                church.logo_mimetype = logo_mimetype
             db.session.add(church)
             db.session.commit()
             flash(f"Church '{name}' created.", "success")
@@ -360,10 +398,10 @@ def superadmin_edit_church(church_id):
         church.email = request.form.get("email", "").strip()
         church.address = request.form.get("address", "").strip()
         church.description = request.form.get("description", "").strip()
-        logo = request.files.get("logo")
-        fname = save_upload(logo)
-        if fname:
-            church.logo_filename = fname
+        logo_data, logo_mimetype = read_upload(request.files.get("logo"))
+        if logo_data:
+            church.logo_data = logo_data
+            church.logo_mimetype = logo_mimetype
         db.session.commit()
         flash("Church details updated.", "success")
         return redirect(url_for("superadmin_church_detail", church_id=church.id))
@@ -695,9 +733,10 @@ def admin_new_member():
             is_editable=False,
         )
         member.member_number = church.next_member_number()
-        fname = save_upload(request.files.get("photo"))
-        if fname:
-            member.photo_filename = fname
+        photo_data, photo_mimetype = read_upload(request.files.get("photo"))
+        if photo_data:
+            member.photo_data = photo_data
+            member.photo_mimetype = photo_mimetype
         db.session.add(member)
         db.session.flush()
         if request.form.get("mark_present"):
@@ -728,13 +767,27 @@ def admin_edit_member(member_id):
         member.phone = request.form.get("phone", "").strip()
         member.email = request.form.get("email", "").strip()
         member.address = request.form.get("address", "").strip()
-        fname = save_upload(request.files.get("photo"))
-        if fname:
-            member.photo_filename = fname
+        photo_data, photo_mimetype = read_upload(request.files.get("photo"))
+        if photo_data:
+            member.photo_data = photo_data
+            member.photo_mimetype = photo_mimetype
         db.session.commit()
         flash("Member details updated.", "success")
         return redirect(url_for("admin_members"))
     return render_template("admin/member_form.html", member=member)
+
+
+@app.route("/admin/members/<int:member_id>/delete", methods=["POST"])
+@role_required("admin")
+def admin_delete_member(member_id):
+    church = current_user.church
+    member = Member.query.filter_by(id=member_id, church_id=church.id).first_or_404()
+    name = member.full_name
+    Attendance.query.filter_by(member_id=member.id).delete(synchronize_session=False)
+    db.session.delete(member)
+    db.session.commit()
+    flash(f"{name} was removed from the church list.", "success")
+    return redirect(url_for("admin_members"))
 
 
 @app.route("/admin/reports/absentees")

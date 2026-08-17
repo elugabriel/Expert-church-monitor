@@ -35,8 +35,8 @@
       {% for c in churches %}
       <tr>
         <td>
-          {% if c.logo_filename %}
-            <img class="church-logo" src="{{ url_for('uploaded_file', filename=c.logo_filename) }}">
+          {% if c.logo_data %}
+            <img class="church-logo" src="{{ url_for('church_logo', church_id=c.id) }}">
           {% else %}
             <div class="church-logo d-flex align-items-center justify-content-center"><i class="bi bi-building"></i></div>
           {% endif %}
