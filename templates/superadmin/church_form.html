@@ -38,8 +38,8 @@
         </div>
         <div class="mb-3">
           <label class="form-label">Church Logo</label>
-          {% if church and church.logo_data %}
-            <div class="mb-2"><img src="{{ url_for('church_logo', church_id=church.id) }}" class="church-logo"></div>
+          {% if church and church.logo_filename %}
+            <div class="mb-2"><img src="{{ url_for('uploaded_file', filename=church.logo_filename) }}" class="church-logo"></div>
           {% endif %}
           <input type="file" class="form-control" name="logo" accept="image/*">
         </div>

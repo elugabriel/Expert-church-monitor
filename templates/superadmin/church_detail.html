@@ -2,8 +2,8 @@
 {% block title %}{{ church.name }}{% endblock %}
 {% block content %}
 <div class="d-flex align-items-center gap-3 mb-4">
-  {% if church.logo_data %}
-    <img src="{{ url_for('church_logo', church_id=church.id) }}" class="church-logo" style="width:72px;height:72px;">
+  {% if church.logo_filename %}
+    <img src="{{ url_for('uploaded_file', filename=church.logo_filename) }}" class="church-logo" style="width:72px;height:72px;">
   {% else %}
     <div class="church-logo d-flex align-items-center justify-content-center" style="width:72px;height:72px;"><i class="bi bi-building fs-3"></i></div>
   {% endif %}

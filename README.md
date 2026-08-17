@@ -18,7 +18,6 @@ the front end is easy to find and edit.
 - **Unique member numbers**: auto-generated per church, e.g. `STP-0001`.
 - **Birthdays are day + month only, never a year**: people are often not comfortable sharing their birth year, and the app only needs day/month for reminders anyway — the member form uses two dropdowns (no year field exists anywhere, including in CSV/Excel import).
 - **Edit lock**: each member record starts locked; an admin must click "Enable Editing" before changing details, then can lock it again.
-- **Delete member**: admins can remove a member who has left the church (from the Members list or the member's own page) — this also clears their attendance history and asks for confirmation first.
 - **Absentee report**: pick a date range, see everyone with no attendance in that window (with their last-attended date), export to CSV for follow-up.
 - **Birthday pop-up**: on login, admins see a modal of members whose birthday falls in the current month.
 
@@ -54,14 +53,10 @@ Uses SQLAlchemy against whatever `DATABASE_URL` you set:
 
 > **Important caveat about SQLite on Render:** Render's web service filesystem
 > is ephemeral — it resets on every deploy/restart. A plain local SQLite file
-> will **not** persist unless you point `DATABASE_URL` at SQLite Cloud/Postgres
-> instead. For anything beyond testing, use SQLite Cloud or Postgres.
->
-> Church logos and member photos are stored **as bytes inside the database**
-> itself (not as files on disk), specifically so they survive restarts too —
-> as long as `DATABASE_URL` points at persistent storage, images persist
-> right along with everything else. No separate disk or file storage setup
-> is needed.
+> (and uploaded logos/photos) will **not** persist unless you attach a
+> [Render persistent disk](https://render.com/docs/disks) to the service, or
+> point `DATABASE_URL` at SQLite Cloud/Postgres instead. For anything beyond
+> testing, use SQLite Cloud or Postgres as the `DATABASE_URL`.
 
 ## Deploying to Render
 
@@ -73,10 +68,7 @@ Uses SQLAlchemy against whatever `DATABASE_URL` you set:
    - `SECRET_KEY` — a long random string.
    - `DATABASE_URL` — your SQLite Cloud or Postgres connection string.
    - `SUPERADMIN_USERNAME` / `SUPERADMIN_PASSWORD` — set these so you know the login instead of hunting through logs.
-
-No persistent disk is needed for uploaded images — they're stored in the
-database itself, so as long as `DATABASE_URL` points at SQLite Cloud or
-Postgres, logos and photos survive restarts along with everything else.
+6. If you want uploaded logos/photos to survive restarts, attach a persistent disk mounted at the app directory, or swap the upload code to a cloud storage bucket.
 
 ## Super admin login keeps resetting on Render — why, and the fix
 
@@ -123,15 +115,11 @@ static/
   css/style.css              # custom styles (layered on Bootstrap)
   js/app.js                  # shared front-end behaviour (birthday modal)
   branding/company_logo.png  # Expert Media Solutions logo, shown in the navbar
+  uploads/                   # uploaded church logos & member photos
 ```
-
-Church logos and member photos aren't stored under `static/` — they're saved
-as bytes in the database and served through the `/church-logo/<id>` and
-`/member-photo/<id>` routes.
 
 ## Notes / next steps you may want
 
 - Passwords for church admins are set by the super admin when creating the account; there's no self-service "forgot password" flow yet.
 - Attendance is one record per member per day (re-scanning the same number the same day just shows "already marked present").
 - The absentee report works off any date range you pick, so it works whether your church meets weekly, midweek, or on an irregular schedule.
-- There's no migration tool (no Flask-Migrate/Alembic) — `db.create_all()` only creates tables that don't exist yet, it won't alter an existing one. If you have an old local `church.db` (or SQLite Cloud database) from before images moved into the database, delete/recreate it so the new columns get created; there's no real cost to this pre-launch, since it just means starting the church/member data fresh.
