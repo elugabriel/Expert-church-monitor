@@ -737,6 +737,19 @@ def admin_edit_member(member_id):
     return render_template("admin/member_form.html", member=member)
 
 
+@app.route("/admin/members/<int:member_id>/delete", methods=["POST"])
+@role_required("admin")
+def admin_delete_member(member_id):
+    church = current_user.church
+    member = Member.query.filter_by(id=member_id, church_id=church.id).first_or_404()
+    name = member.full_name
+    Attendance.query.filter_by(member_id=member.id).delete(synchronize_session=False)
+    db.session.delete(member)
+    db.session.commit()
+    flash(f"{name} was removed from the church list.", "success")
+    return redirect(url_for("admin_members"))
+
+
 @app.route("/admin/reports/absentees")
 @role_required("admin")
 def admin_absentee_report():
