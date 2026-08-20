@@ -4,6 +4,7 @@
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
   <h3 class="mb-0">Members</h3>
   <div class="d-flex gap-2">
+    <a href="{{ url_for('admin_members_left') }}" class="btn btn-outline-secondary"><i class="bi bi-person-dash"></i> Members Who Left {% if left_count %}<span class="badge bg-secondary">{{ left_count }}</span>{% endif %}</a>
     <a href="{{ url_for('admin_import_members') }}" class="btn btn-outline-primary"><i class="bi bi-file-earmark-arrow-up"></i> Import from CSV</a>
     <a href="{{ url_for('admin_new_member') }}" class="btn btn-primary"><i class="bi bi-person-plus"></i> Register First Timer</a>
   </div>
@@ -42,6 +43,10 @@
         </td>
         <td class="text-end">
           <a href="{{ url_for('admin_edit_member', member_id=m.id) }}" class="btn btn-sm btn-outline-primary">Edit</a>
+          <form method="post" action="{{ url_for('admin_move_member_out', member_id=m.id) }}" class="d-inline"
+                onsubmit="return confirm('Move {{ m.full_name }} ({{ m.member_number }}) to Members Who Left? They will be hidden from the active member list, attendance and birthday reminders until restored.');">
+            <button class="btn btn-sm btn-outline-warning">Move</button>
+          </form>
           <form method="post" action="{{ url_for('admin_delete_member', member_id=m.id) }}" class="d-inline"
                 onsubmit="return confirm('Remove {{ m.full_name }} ({{ m.member_number }}) from the church list? This also deletes their attendance history and cannot be undone.');">
             <button class="btn btn-sm btn-outline-danger">Delete</button>

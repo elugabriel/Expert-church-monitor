@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Members Who Left{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <div>
+    <h3 class="mb-0"><i class="bi bi-person-dash"></i> Members Who Left</h3>
+    <span class="text-muted">People no longer attending this church. Restore anyone who's back.</span>
+  </div>
+  <a href="{{ url_for('admin_members') }}" class="btn btn-light">Back to Members</a>
+</div>
+
+<div class="card p-3">
+  <div class="table-responsive">
+  <table class="table align-middle">
+    <thead><tr><th></th><th>Number</th><th>Name</th><th>Phone</th><th>Left On</th><th></th></tr></thead>
+    <tbody>
+    {% for m in members %}
+      <tr>
+        <td>
+          {% if m.photo_filename %}
+            <img src="{{ url_for('uploaded_file', filename=m.photo_filename) }}" class="member-photo">
+          {% else %}
+            <div class="member-photo d-flex align-items-center justify-content-center"><i class="bi bi-person"></i></div>
+          {% endif %}
+        </td>
+        <td><span class="badge bg-dark">{{ m.member_number }}</span></td>
+        <td>{{ m.full_name }}</td>
+        <td>{{ m.phone or '-' }}</td>
+        <td>{{ m.left_at.strftime('%d %b %Y') if m.left_at else '-' }}</td>
+        <td class="text-end">
+          <a href="{{ url_for('admin_edit_member', member_id=m.id) }}" class="btn btn-sm btn-outline-primary">View</a>
+          <form method="post" action="{{ url_for('admin_restore_member', member_id=m.id) }}" class="d-inline"
+                onsubmit="return confirm('Restore {{ m.full_name }} ({{ m.member_number }}) to the active member list?');">
+            <button class="btn btn-sm btn-outline-success">Restore</button>
+          </form>
+          <form method="post" action="{{ url_for('admin_delete_member', member_id=m.id) }}" class="d-inline"
+                onsubmit="return confirm('Permanently remove {{ m.full_name }} ({{ m.member_number }})? This also deletes their attendance history and cannot be undone.');">
+            <button class="btn btn-sm btn-outline-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="text-center text-muted py-4">Nobody has left yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

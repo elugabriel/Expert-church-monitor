@@ -44,8 +44,11 @@
       <h5><i class="bi bi-check2-circle"></i> Mark Attendance</h5>
       <form method="post" action="{{ url_for('mark_attendance') }}" class="mt-3">
         <div class="mb-3">
-          <label class="form-label">Member Number</label>
-          <input type="text" class="form-control form-control-lg" name="member_number" placeholder="e.g. {{ church.code }}-0001" required autofocus>
+          <label class="form-label">Member Number(s)</label>
+          <textarea class="form-control form-control-lg" name="member_numbers" rows="2"
+                    placeholder="e.g. {{ church.code }}-0001 {{ church.code }}-0002 {{ church.code }}-0003"
+                    required autofocus></textarea>
+          <div class="form-text">Enter one number to check in one person, or several — separated by spaces, commas, or new lines — to mark a whole group at once.</div>
         </div>
         <button class="btn btn-primary w-100" type="submit">Mark Present</button>
       </form>
@@ -73,6 +76,21 @@
           </tbody>
         </table>
       </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mt-1">
+  <div class="col-12">
+    <div class="card p-3 d-flex flex-row justify-content-between align-items-center flex-wrap gap-2">
+      <div>
+        <h5 class="mb-1"><i class="bi bi-person-dash"></i> Members Who Left</h5>
+        <p class="text-muted mb-0">
+          {{ left_count }} member(s) no longer attending this church. Move someone out from the
+          <a href="{{ url_for('admin_members') }}">Members list</a>, or review/restore who's already been moved.
+        </p>
+      </div>
+      <a href="{{ url_for('admin_members_left') }}" class="btn btn-outline-secondary">Manage</a>
     </div>
   </div>
 </div>

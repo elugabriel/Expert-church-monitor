@@ -20,6 +20,7 @@ Deploy:
 
 import os
 import io
+import re
 import csv
 import uuid
 import secrets
@@ -38,7 +39,7 @@ from flask_login import (
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from sqlalchemy import extract, func
+from sqlalchemy import extract, func, inspect, text
 from sqlalchemy.exc import IntegrityError
 
 try:
@@ -140,6 +141,7 @@ class Member(db.Model):
     status = db.Column(db.String(20), default="first_timer")  # first_timer / member
     is_editable = db.Column(db.Boolean, default=False, nullable=False)
     joined_at = db.Column(db.DateTime, default=datetime.utcnow)
+    left_at = db.Column(db.DateTime, nullable=True)  # set when moved to "no longer in church"
 
     church = db.relationship("Church", backref="members")
 
@@ -437,9 +439,10 @@ def superadmin_delete_admin(admin_id):
 def admin_dashboard():
     church = current_user.church
     today = date.today()
-    all_members = Member.query.filter_by(church_id=church.id).all()
+    all_members = Member.query.filter_by(church_id=church.id, left_at=None).all()
     total_members = len(all_members)
     all_editable = bool(all_members) and all(m.is_editable for m in all_members)
+    left_count = Member.query.filter(Member.church_id == church.id, Member.left_at.isnot(None)).count()
     todays_attendance = (
         Attendance.query.filter_by(church_id=church.id, service_date=today)
         .order_by(Attendance.marked_at.desc()).all()
@@ -448,6 +451,7 @@ def admin_dashboard():
     birthdays = (
         Member.query.filter(
             Member.church_id == church.id,
+            Member.left_at.is_(None),
             Member.date_of_birth.isnot(None),
             extract("month", Member.date_of_birth) == today.month,
         ).order_by(extract("day", Member.date_of_birth)).all()
@@ -456,7 +460,7 @@ def admin_dashboard():
         "admin/dashboard.html", church=church, today=today,
         total_members=total_members, present_today=present_today,
         todays_attendance=todays_attendance, birthdays=birthdays,
-        all_editable=all_editable,
+        all_editable=all_editable, left_count=left_count,
     )
 
 
@@ -464,7 +468,7 @@ def admin_dashboard():
 @role_required("admin")
 def admin_toggle_edit_all():
     church = current_user.church
-    members = Member.query.filter_by(church_id=church.id).all()
+    members = Member.query.filter_by(church_id=church.id, left_at=None).all()
     if not members:
         flash("There are no members yet.", "info")
         return redirect(url_for("admin_dashboard"))
@@ -481,19 +485,62 @@ def admin_toggle_edit_all():
 @role_required("admin")
 def mark_attendance():
     church = current_user.church
-    number = request.form.get("member_number", "").strip().upper()
-    member = Member.query.filter_by(church_id=church.id, member_number=number).first()
-    if not member:
-        flash(f"No member found with number '{number}'. Is this a first timer?", "warning")
+    raw = request.form.get("member_numbers", "") or request.form.get("member_number", "")
+    # Accept numbers separated by spaces, commas, and/or newlines — so pasting
+    # or typing several at once (e.g. a whole family) works in one go.
+    numbers = []
+    seen = set()
+    for tok in re.split(r"[,\s]+", raw.strip()):
+        tok = tok.strip().upper()
+        if tok and tok not in seen:
+            seen.add(tok)
+            numbers.append(tok)
+
+    if not numbers:
+        flash("Enter at least one member number.", "danger")
         return redirect(url_for("admin_dashboard"))
+
     today = date.today()
-    existing = Attendance.query.filter_by(member_id=member.id, service_date=today).first()
-    if existing:
-        flash(f"{member.full_name} was already marked present today.", "info")
-    else:
+    marked, already, left_church, not_found = [], [], [], []
+
+    for number in numbers:
+        member = Member.query.filter_by(church_id=church.id, member_number=number).first()
+        if not member:
+            not_found.append(number)
+            continue
+        if member.left_at:
+            left_church.append(member.full_name)
+            continue
+        existing = Attendance.query.filter_by(member_id=member.id, service_date=today).first()
+        if existing:
+            already.append(member.full_name)
+            continue
         db.session.add(Attendance(member_id=member.id, church_id=church.id, service_date=today))
+        marked.append(member.full_name)
+
+    if marked:
         db.session.commit()
-        flash(f"Marked present: {member.full_name} ({member.member_number}).", "success")
+
+    if len(numbers) == 1:
+        # Keep single-entry messaging exactly as before.
+        if marked:
+            flash(f"Marked present: {marked[0]} ({numbers[0]}).", "success")
+        elif already:
+            flash(f"{already[0]} was already marked present today.", "info")
+        elif left_church:
+            flash(f"{left_church[0]} is marked as no longer in the church. Restore them from Members Who Left first if they're attending again.", "warning")
+        else:
+            flash(f"No member found with number '{numbers[0]}'. Is this a first timer?", "warning")
+        return redirect(url_for("admin_dashboard"))
+
+    if marked:
+        flash(f"Marked present: {', '.join(marked)} ({len(marked)}).", "success")
+    if already:
+        flash(f"Already marked present today: {', '.join(already)}.", "info")
+    if left_church:
+        flash(f"No longer in the church (restore first if attending again): {', '.join(left_church)}.", "warning")
+    if not_found:
+        flash(f"No member found for: {', '.join(not_found)}.", "warning")
     return redirect(url_for("admin_dashboard"))
 
 
@@ -502,12 +549,46 @@ def mark_attendance():
 def admin_members():
     church = current_user.church
     q = request.args.get("q", "").strip()
-    query = Member.query.filter_by(church_id=church.id)
+    query = Member.query.filter_by(church_id=church.id, left_at=None)
     if q:
         like = f"%{q}%"
         query = query.filter(db.or_(Member.full_name.ilike(like), Member.member_number.ilike(like)))
     members = query.order_by(Member.full_name).all()
-    return render_template("admin/members_list.html", members=members, q=q)
+    left_count = Member.query.filter(Member.church_id == church.id, Member.left_at.isnot(None)).count()
+    return render_template("admin/members_list.html", members=members, q=q, left_count=left_count)
+
+
+@app.route("/admin/members/<int:member_id>/move-out", methods=["POST"])
+@role_required("admin")
+def admin_move_member_out(member_id):
+    church = current_user.church
+    member = Member.query.filter_by(id=member_id, church_id=church.id).first_or_404()
+    member.left_at = datetime.utcnow()
+    db.session.commit()
+    flash(f"{member.full_name} was moved to Members Who Left.", "success")
+    return redirect(url_for("admin_members"))
+
+
+@app.route("/admin/members/left")
+@role_required("admin")
+def admin_members_left():
+    church = current_user.church
+    members = (
+        Member.query.filter(Member.church_id == church.id, Member.left_at.isnot(None))
+        .order_by(Member.left_at.desc()).all()
+    )
+    return render_template("admin/members_left.html", members=members)
+
+
+@app.route("/admin/members/<int:member_id>/restore", methods=["POST"])
+@role_required("admin")
+def admin_restore_member(member_id):
+    church = current_user.church
+    member = Member.query.filter_by(id=member_id, church_id=church.id).first_or_404()
+    member.left_at = None
+    db.session.commit()
+    flash(f"{member.full_name} was restored to the active member list.", "success")
+    return redirect(url_for("admin_members_left"))
 
 
 IMPORT_REQUIRED_COLUMN = "full_name"
@@ -767,7 +848,7 @@ def admin_absentee_report():
                 Attendance.service_date <= end,
             ).all()
         }
-        absentees = Member.query.filter_by(church_id=church.id).filter(
+        absentees = Member.query.filter_by(church_id=church.id, left_at=None).filter(
             ~Member.id.in_(attended_ids) if attended_ids else True
         ).order_by(Member.full_name).all()
 
@@ -885,8 +966,32 @@ def reset_superadmin_command(username, password):
     click.echo("=" * 70)
 
 
+# There's no migration framework (Alembic/Flask-Migrate) in this single-file
+# app, and db.create_all() only creates tables that don't exist yet — it
+# never alters an existing one. So when a column is added to a model after
+# a database is already in use, this patches it in on startup: safe to run
+# every time, and it never touches existing rows (new columns just come back
+# as NULL/default for rows that already existed).
+_SCHEMA_PATCHES = [
+    ("member", "left_at", "DATETIME"),
+]
+
+
+def ensure_schema():
+    inspector = inspect(db.engine)
+    if "member" not in inspector.get_table_names():
+        return  # fresh database; db.create_all() already made it fully up to date
+    for table, column, coltype in _SCHEMA_PATCHES:
+        existing_cols = {c["name"] for c in inspector.get_columns(table)}
+        if column not in existing_cols:
+            with db.engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}"))
+            print(f"Schema update: added '{column}' column to '{table}' table.")
+
+
 with app.app_context():
     db.create_all()
+    ensure_schema()
     seed_superadmin()
 
 
