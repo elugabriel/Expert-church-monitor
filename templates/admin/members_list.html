@@ -41,7 +41,7 @@
           {% endif %}
         </td>
         <td class="text-end">
-          <a href="{{ url_for('admin_edit_member', member_id=m.id) }}" class="btn btn-sm btn-outline-primary">View / Edit</a>
+          <a href="{{ url_for('admin_edit_member', member_id=m.id) }}" class="btn btn-sm btn-outline-primary">Edit</a>
           <form method="post" action="{{ url_for('admin_delete_member', member_id=m.id) }}" class="d-inline"
                 onsubmit="return confirm('Remove {{ m.full_name }} ({{ m.member_number }}) from the church list? This also deletes their attendance history and cannot be undone.');">
             <button class="btn btn-sm btn-outline-danger">Delete</button>
@@ -54,6 +54,6 @@
     </tbody>
   </table>
   </div>
-  <p class="text-muted small mb-0 mt-2"><i class="bi bi-info-circle"></i> Editing for all members is turned on/off from the <a href="{{ url_for('admin_dashboard') }}">Dashboard</a>.</p>
+  <!-- <p class="text-muted small mb-0 mt-2"><i class="bi bi-info-circle"></i> Editing for all members is turned on/off from the <a href="{{ url_for('admin_dashboard') }}">Dashboard</a>.</p> -->
 </div>
 {% endblock %}
