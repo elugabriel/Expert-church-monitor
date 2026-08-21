@@ -100,6 +100,11 @@ class Church(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def next_member_number(self):
+        # If every member record for this church has been deleted, start the
+        # numbering over from scratch instead of continuing the old count —
+        # there's nothing left to collide with.
+        if not Member.query.filter_by(church_id=self.id).first():
+            self.next_seq = 1
         seq = self.next_seq or 1
         self.next_seq = seq + 1
         return f"{self.code}-{seq:04d}"
@@ -555,7 +560,24 @@ def admin_members():
         query = query.filter(db.or_(Member.full_name.ilike(like), Member.member_number.ilike(like)))
     members = query.order_by(Member.full_name).all()
     left_count = Member.query.filter(Member.church_id == church.id, Member.left_at.isnot(None)).count()
-    return render_template("admin/members_list.html", members=members, q=q, left_count=left_count)
+    has_no_members = Member.query.filter_by(church_id=church.id).first() is None
+    return render_template(
+        "admin/members_list.html", members=members, q=q, left_count=left_count,
+        has_no_members=has_no_members, next_number_preview=f"{church.code}-{church.next_seq:04d}",
+    )
+
+
+@app.route("/admin/members/reset-numbering", methods=["POST"])
+@role_required("admin")
+def admin_reset_numbering():
+    church = current_user.church
+    if Member.query.filter_by(church_id=church.id).first():
+        flash("Numbering can only be reset when there are no member records at all (active or left) for this church.", "danger")
+        return redirect(url_for("admin_members"))
+    church.next_seq = 1
+    db.session.commit()
+    flash(f"Member numbering reset — the next registered member will be {church.code}-0001.", "success")
+    return redirect(url_for("admin_members"))
 
 
 @app.route("/admin/members/<int:member_id>/move-out", methods=["POST"])

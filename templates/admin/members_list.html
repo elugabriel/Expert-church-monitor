@@ -15,6 +15,21 @@
     <button class="btn btn-outline-secondary">Search</button>
   </div>
 </form>
+
+{% if has_no_members and not next_number_preview.endswith('-0001') %}
+<div class="alert alert-info d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div>
+    <i class="bi bi-info-circle"></i> There are no member records at all for this church right now.
+    The next one registered would be numbered <strong>{{ next_number_preview }}</strong> — continuing
+    from before, not starting over.
+  </div>
+  <form method="post" action="{{ url_for('admin_reset_numbering') }}"
+        onsubmit="return confirm('Reset member numbering back to {{ current_user.church.code }}-0001? Only do this if you\'re starting completely fresh.');">
+    <button class="btn btn-sm btn-outline-primary">Reset Numbering to 0001</button>
+  </form>
+</div>
+{% endif %}
+
 <div class="card p-3">
   <div class="table-responsive">
   <table class="table align-middle">
