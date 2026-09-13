@@ -12,7 +12,7 @@
 <div class="card p-3">
   <div class="table-responsive">
   <table class="table align-middle">
-    <thead><tr><th></th><th>Number</th><th>Name</th><th>Phone</th><th>Left On</th><th></th></tr></thead>
+    <thead><tr><th></th><th>Number</th><th>Name</th><th>Type</th><th>Phone</th><th>Left On</th><th></th></tr></thead>
     <tbody>
     {% for m in members %}
       <tr>
@@ -25,10 +25,11 @@
         </td>
         <td><span class="badge bg-dark">{{ m.member_number }}</span></td>
         <td>{{ m.full_name }}</td>
+        <td>{% if m.is_child %}<span class="badge bg-info text-dark">Child</span>{% else %}<span class="badge bg-secondary">Adult</span>{% endif %}</td>
         <td>{{ m.phone or '-' }}</td>
         <td>{{ m.left_at.strftime('%d %b %Y') if m.left_at else '-' }}</td>
         <td class="text-end">
-          <a href="{{ url_for('admin_edit_member', member_id=m.id) }}" class="btn btn-sm btn-outline-primary">View</a>
+          <a href="{{ url_for('admin_edit_child', member_id=m.id) if m.is_child else url_for('admin_edit_member', member_id=m.id) }}" class="btn btn-sm btn-outline-primary">View</a>
           <form method="post" action="{{ url_for('admin_restore_member', member_id=m.id) }}" class="d-inline"
                 onsubmit="return confirm('Restore {{ m.full_name }} ({{ m.member_number }}) to the active member list?');">
             <button class="btn btn-sm btn-outline-success">Restore</button>
@@ -40,7 +41,7 @@
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="6" class="text-center text-muted py-4">Nobody has left yet.</td></tr>
+      <tr><td colspan="7" class="text-center text-muted py-4">Nobody has left yet.</td></tr>
     {% endfor %}
     </tbody>
   </table>

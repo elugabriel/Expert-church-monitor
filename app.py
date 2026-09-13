@@ -147,6 +147,7 @@ class Member(db.Model):
     is_editable = db.Column(db.Boolean, default=False, nullable=False)
     joined_at = db.Column(db.DateTime, default=datetime.utcnow)
     left_at = db.Column(db.DateTime, nullable=True)  # set when moved to "no longer in church"
+    is_child = db.Column(db.Boolean, default=False, nullable=False)  # tracked in children's church separately
 
     church = db.relationship("Church", backref="members")
 
@@ -444,19 +445,22 @@ def superadmin_delete_admin(admin_id):
 def admin_dashboard():
     church = current_user.church
     today = date.today()
-    all_members = Member.query.filter_by(church_id=church.id, left_at=None).all()
+    all_members = Member.query.filter_by(church_id=church.id, left_at=None, is_child=False).all()
     total_members = len(all_members)
     all_editable = bool(all_members) and all(m.is_editable for m in all_members)
     left_count = Member.query.filter(Member.church_id == church.id, Member.left_at.isnot(None)).count()
+    child_count = Member.query.filter_by(church_id=church.id, left_at=None, is_child=True).count()
     todays_attendance = (
-        Attendance.query.filter_by(church_id=church.id, service_date=today)
-        .order_by(Attendance.marked_at.desc()).all()
+        Attendance.query.join(Member).filter(
+            Attendance.church_id == church.id, Attendance.service_date == today, Member.is_child.is_(False),
+        ).order_by(Attendance.marked_at.desc()).all()
     )
     present_today = len(todays_attendance)
     birthdays = (
         Member.query.filter(
             Member.church_id == church.id,
             Member.left_at.is_(None),
+            Member.is_child.is_(False),
             Member.date_of_birth.isnot(None),
             extract("month", Member.date_of_birth) == today.month,
         ).order_by(extract("day", Member.date_of_birth)).all()
@@ -465,7 +469,7 @@ def admin_dashboard():
         "admin/dashboard.html", church=church, today=today,
         total_members=total_members, present_today=present_today,
         todays_attendance=todays_attendance, birthdays=birthdays,
-        all_editable=all_editable, left_count=left_count,
+        all_editable=all_editable, left_count=left_count, child_count=child_count,
     )
 
 
@@ -473,7 +477,7 @@ def admin_dashboard():
 @role_required("admin")
 def admin_toggle_edit_all():
     church = current_user.church
-    members = Member.query.filter_by(church_id=church.id, left_at=None).all()
+    members = Member.query.filter_by(church_id=church.id, left_at=None, is_child=False).all()
     if not members:
         flash("There are no members yet.", "info")
         return redirect(url_for("admin_dashboard"))
@@ -506,7 +510,7 @@ def mark_attendance():
         return redirect(url_for("admin_dashboard"))
 
     today = date.today()
-    marked, already, left_church, not_found = [], [], [], []
+    marked, already, left_church, is_child_list, not_found = [], [], [], [], []
 
     for number in numbers:
         member = Member.query.filter_by(church_id=church.id, member_number=number).first()
@@ -515,6 +519,9 @@ def mark_attendance():
             continue
         if member.left_at:
             left_church.append(member.full_name)
+            continue
+        if member.is_child:
+            is_child_list.append(member.full_name)
             continue
         existing = Attendance.query.filter_by(member_id=member.id, service_date=today).first()
         if existing:
@@ -534,6 +541,8 @@ def mark_attendance():
             flash(f"{already[0]} was already marked present today.", "info")
         elif left_church:
             flash(f"{left_church[0]} is marked as no longer in the church. Restore them from Members Who Left first if they're attending again.", "warning")
+        elif is_child_list:
+            flash(f"{is_child_list[0]} is registered in the Children's church. Mark their attendance from the Children page instead.", "warning")
         else:
             flash(f"No member found with number '{numbers[0]}'. Is this a first timer?", "warning")
         return redirect(url_for("admin_dashboard"))
@@ -544,16 +553,17 @@ def mark_attendance():
         flash(f"Already marked present today: {', '.join(already)}.", "info")
     if left_church:
         flash(f"No longer in the church (restore first if attending again): {', '.join(left_church)}.", "warning")
+    if is_child_list:
+        flash(f"In the Children's church — mark attendance from the Children page instead: {', '.join(is_child_list)}.", "warning")
     if not_found:
         flash(f"No member found for: {', '.join(not_found)}.", "warning")
     return redirect(url_for("admin_dashboard"))
 
 
-@app.route("/admin/attendance/checklist", methods=["GET", "POST"])
-@role_required("admin")
-def admin_attendance_checklist():
+def _attendance_checklist_view(is_child, redirect_endpoint, template):
     church = current_user.church
     today = date.today()
+    label = "child" if is_child else "member"
 
     if request.method == "POST":
         checked_ids = {int(v) for v in request.form.getlist("member_ids") if v.isdigit()}
@@ -565,10 +575,11 @@ def admin_attendance_checklist():
         to_mark = checked_ids - already_present_ids
         marked_count = 0
         if to_mark:
-            # Only mark members that actually belong to this church and are active —
-            # never trust checkbox values from the submitted form alone.
+            # Only mark members that actually belong to this church, are active, and
+            # are in the right category — never trust checkbox values from the form alone.
             eligible = Member.query.filter(
-                Member.id.in_(to_mark), Member.church_id == church.id, Member.left_at.is_(None),
+                Member.id.in_(to_mark), Member.church_id == church.id,
+                Member.left_at.is_(None), Member.is_child.is_(is_child),
             ).all()
             for member in eligible:
                 db.session.add(Attendance(member_id=member.id, church_id=church.id, service_date=today))
@@ -577,13 +588,13 @@ def admin_attendance_checklist():
                 db.session.commit()
 
         if marked_count:
-            flash(f"Marked {marked_count} member(s) present for today.", "success")
+            flash(f"Marked {marked_count} {label}(s) present for today.", "success")
         else:
-            flash("No new attendance to record — everyone checked was already marked present today.", "info")
-        return redirect(url_for("admin_attendance_checklist"))
+            flash(f"No new attendance to record — everyone checked was already marked present today.", "info")
+        return redirect(url_for(redirect_endpoint))
 
     q = request.args.get("q", "").strip()
-    query = Member.query.filter_by(church_id=church.id, left_at=None)
+    query = Member.query.filter_by(church_id=church.id, left_at=None, is_child=is_child)
     if q:
         like = f"%{q}%"
         query = query.filter(db.or_(Member.full_name.ilike(like), Member.member_number.ilike(like)))
@@ -594,41 +605,101 @@ def admin_attendance_checklist():
             Attendance.church_id == church.id, Attendance.service_date == today,
         ).all()
     }
+    return render_template(template, members=members, q=q, present_ids=present_ids, today=today)
+
+
+@app.route("/admin/attendance/checklist", methods=["GET", "POST"])
+@role_required("admin")
+def admin_attendance_checklist():
+    return _attendance_checklist_view(False, "admin_attendance_checklist", "admin/attendance_checklist.html")
+
+
+@app.route("/admin/children/attendance/checklist", methods=["GET", "POST"])
+@role_required("admin")
+def admin_children_checklist():
+    return _attendance_checklist_view(True, "admin_children_checklist", "admin/children_checklist.html")
+
+
+def _members_list_view(is_child, endpoint, template):
+    church = current_user.church
+    q = request.args.get("q", "").strip()
+    query = Member.query.filter_by(church_id=church.id, left_at=None, is_child=is_child)
+    if q:
+        like = f"%{q}%"
+        query = query.filter(db.or_(Member.full_name.ilike(like), Member.member_number.ilike(like)))
+    members = query.order_by(Member.full_name).all()
+    left_count = Member.query.filter(
+        Member.church_id == church.id, Member.left_at.isnot(None), Member.is_child.is_(is_child)
+    ).count()
+    # Numbering is shared across adults and children, so only offer a reset
+    # when the WHOLE church (both categories) has no member records at all.
+    has_no_members = Member.query.filter_by(church_id=church.id).first() is None
     return render_template(
-        "admin/attendance_checklist.html", members=members, q=q,
-        present_ids=present_ids, today=today,
+        template, members=members, q=q, left_count=left_count,
+        has_no_members=has_no_members, next_number_preview=f"{church.code}-{church.next_seq:04d}",
     )
 
 
 @app.route("/admin/members")
 @role_required("admin")
 def admin_members():
+    return _members_list_view(False, "admin_members", "admin/members_list.html")
+
+
+@app.route("/admin/children")
+@role_required("admin")
+def admin_children():
+    return _members_list_view(True, "admin_children", "admin/children_list.html")
+
+
+@app.route("/admin/children/move-in", methods=["GET", "POST"])
+@role_required("admin")
+def admin_move_to_children():
     church = current_user.church
+
+    if request.method == "POST":
+        checked_ids = {int(v) for v in request.form.getlist("member_ids") if v.isdigit()}
+        moved = 0
+        if checked_ids:
+            # Only reclassify members that actually belong to this church and are
+            # currently adults — never trust checkbox values from the form alone.
+            eligible = Member.query.filter(
+                Member.id.in_(checked_ids), Member.church_id == church.id,
+                Member.left_at.is_(None), Member.is_child.is_(False),
+            ).all()
+            for member in eligible:
+                member.is_child = True
+                moved += 1
+            if moved:
+                db.session.commit()
+
+        if moved:
+            flash(f"Moved {moved} member(s) to the Children's church.", "success")
+        else:
+            flash("No members were selected to move.", "info")
+        return redirect(url_for("admin_children"))
+
     q = request.args.get("q", "").strip()
-    query = Member.query.filter_by(church_id=church.id, left_at=None)
+    query = Member.query.filter_by(church_id=church.id, left_at=None, is_child=False)
     if q:
         like = f"%{q}%"
         query = query.filter(db.or_(Member.full_name.ilike(like), Member.member_number.ilike(like)))
     members = query.order_by(Member.full_name).all()
-    left_count = Member.query.filter(Member.church_id == church.id, Member.left_at.isnot(None)).count()
-    has_no_members = Member.query.filter_by(church_id=church.id).first() is None
-    return render_template(
-        "admin/members_list.html", members=members, q=q, left_count=left_count,
-        has_no_members=has_no_members, next_number_preview=f"{church.code}-{church.next_seq:04d}",
-    )
+    return render_template("admin/move_to_children.html", members=members, q=q)
 
 
 @app.route("/admin/members/reset-numbering", methods=["POST"])
 @role_required("admin")
 def admin_reset_numbering():
     church = current_user.church
+    back_to = "admin_children" if request.form.get("from") == "children" else "admin_members"
     if Member.query.filter_by(church_id=church.id).first():
-        flash("Numbering can only be reset when there are no member records at all (active or left) for this church.", "danger")
-        return redirect(url_for("admin_members"))
+        flash("Numbering can only be reset when there are no member records at all (active or left, adult or child) for this church.", "danger")
+        return redirect(url_for(back_to))
     church.next_seq = 1
     db.session.commit()
     flash(f"Member numbering reset — the next registered member will be {church.code}-0001.", "success")
-    return redirect(url_for("admin_members"))
+    return redirect(url_for(back_to))
 
 
 @app.route("/admin/members/<int:member_id>/move-out", methods=["POST"])
@@ -637,9 +708,10 @@ def admin_move_member_out(member_id):
     church = current_user.church
     member = Member.query.filter_by(id=member_id, church_id=church.id).first_or_404()
     member.left_at = datetime.utcnow()
+    is_child = member.is_child
     db.session.commit()
     flash(f"{member.full_name} was moved to Members Who Left.", "success")
-    return redirect(url_for("admin_members"))
+    return redirect(url_for("admin_children" if is_child else "admin_members"))
 
 
 @app.route("/admin/members/left")
@@ -660,7 +732,7 @@ def admin_restore_member(member_id):
     member = Member.query.filter_by(id=member_id, church_id=church.id).first_or_404()
     member.left_at = None
     db.session.commit()
-    flash(f"{member.full_name} was restored to the active member list.", "success")
+    flash(f"{member.full_name} was restored to the active {'children' if member.is_child else 'member'} list.", "success")
     return redirect(url_for("admin_members_left"))
 
 
@@ -823,15 +895,13 @@ def admin_import_members():
     return render_template("admin/members_import.html", results=results)
 
 
-@app.route("/admin/members/new", methods=["GET", "POST"])
-@role_required("admin")
-def admin_new_member():
+def _new_member_view(is_child, list_endpoint, template):
     church = current_user.church
     if request.method == "POST":
         full_name = request.form.get("full_name", "").strip()
         if not full_name:
             flash("Full name is required.", "danger")
-            return redirect(url_for("admin_new_member"))
+            return redirect(request.path)
         dob_day = request.form.get("dob_day", "")
         dob_month = request.form.get("dob_month", "")
         birthday = build_birthday(dob_day, dob_month)
@@ -847,6 +917,7 @@ def admin_new_member():
             address=request.form.get("address", "").strip(),
             status=request.form.get("status", "first_timer"),
             is_editable=False,
+            is_child=is_child,
         )
         member.member_number = church.next_member_number()
         fname = save_upload(request.files.get("photo"))
@@ -858,19 +929,29 @@ def admin_new_member():
             db.session.add(Attendance(member_id=member.id, church_id=church.id, service_date=date.today()))
         db.session.commit()
         flash(f"{member.full_name} registered with number {member.member_number}.", "success")
-        return redirect(url_for("admin_members"))
-    return render_template("admin/member_form.html", member=None)
+        return redirect(url_for(list_endpoint))
+    return render_template(template, member=None, is_child=is_child)
 
 
-@app.route("/admin/members/<int:member_id>/edit", methods=["GET", "POST"])
+@app.route("/admin/members/new", methods=["GET", "POST"])
 @role_required("admin")
-def admin_edit_member(member_id):
+def admin_new_member():
+    return _new_member_view(False, "admin_members", "admin/member_form.html")
+
+
+@app.route("/admin/children/new", methods=["GET", "POST"])
+@role_required("admin")
+def admin_new_child():
+    return _new_member_view(True, "admin_children", "admin/child_form.html")
+
+
+def _edit_member_view(member_id, is_child, list_endpoint, edit_endpoint, template):
     church = current_user.church
-    member = Member.query.filter_by(id=member_id, church_id=church.id).first_or_404()
+    member = Member.query.filter_by(id=member_id, church_id=church.id, is_child=is_child).first_or_404()
     if request.method == "POST":
         if not member.is_editable:
             flash("This member's details are locked. Enable editing first.", "danger")
-            return redirect(url_for("admin_edit_member", member_id=member.id))
+            return redirect(url_for(edit_endpoint, member_id=member.id))
         member.full_name = request.form.get("full_name", "").strip() or member.full_name
         member.gender = request.form.get("gender", "")
         dob_day = request.form.get("dob_day", "")
@@ -887,8 +968,20 @@ def admin_edit_member(member_id):
             member.photo_filename = fname
         db.session.commit()
         flash("Member details updated.", "success")
-        return redirect(url_for("admin_members"))
-    return render_template("admin/member_form.html", member=member)
+        return redirect(url_for(list_endpoint))
+    return render_template(template, member=member, is_child=is_child)
+
+
+@app.route("/admin/members/<int:member_id>/edit", methods=["GET", "POST"])
+@role_required("admin")
+def admin_edit_member(member_id):
+    return _edit_member_view(member_id, False, "admin_members", "admin_edit_member", "admin/member_form.html")
+
+
+@app.route("/admin/children/<int:member_id>/edit", methods=["GET", "POST"])
+@role_required("admin")
+def admin_edit_child(member_id):
+    return _edit_member_view(member_id, True, "admin_children", "admin_edit_child", "admin/child_form.html")
 
 
 @app.route("/admin/members/<int:member_id>/delete", methods=["POST"])
@@ -897,11 +990,12 @@ def admin_delete_member(member_id):
     church = current_user.church
     member = Member.query.filter_by(id=member_id, church_id=church.id).first_or_404()
     name = member.full_name
+    is_child = member.is_child
     Attendance.query.filter_by(member_id=member.id).delete(synchronize_session=False)
     db.session.delete(member)
     db.session.commit()
     flash(f"{name} was removed from the church list.", "success")
-    return redirect(url_for("admin_members"))
+    return redirect(url_for("admin_children" if is_child else "admin_members"))
 
 
 @app.route("/admin/reports/absentees")
@@ -921,7 +1015,7 @@ def admin_absentee_report():
                 Attendance.service_date <= end,
             ).all()
         }
-        absentees = Member.query.filter_by(church_id=church.id, left_at=None).filter(
+        absentees = Member.query.filter_by(church_id=church.id, left_at=None, is_child=False).filter(
             ~Member.id.in_(attended_ids) if attended_ids else True
         ).order_by(Member.full_name).all()
 
@@ -1047,6 +1141,7 @@ def reset_superadmin_command(username, password):
 # as NULL/default for rows that already existed).
 _SCHEMA_PATCHES = [
     ("member", "left_at", "DATETIME"),
+    ("member", "is_child", "BOOLEAN NOT NULL DEFAULT 0"),
 ]
 
 

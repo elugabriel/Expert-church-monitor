@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Move Adults to Children{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <div>
+    <h3 class="mb-0"><i class="bi bi-arrow-right-circle"></i> Move Members to Children</h3>
+    <span class="text-muted">Tick anyone who was registered as an adult but is actually a child, then submit to move them.</span>
+  </div>
+  <a href="{{ url_for('admin_children') }}" class="btn btn-light">Back to Children</a>
+</div>
+
+<form method="get" class="mb-3">
+  <div class="input-group" style="max-width:400px;">
+    <input type="text" class="form-control" name="q" value="{{ q or '' }}" placeholder="Search name or member number">
+    <button class="btn btn-outline-secondary">Search</button>
+  </div>
+</form>
+
+<form method="post">
+  <div class="card p-3">
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="select-all">
+        <label class="form-check-label" for="select-all">Select / deselect all shown below</label>
+      </div>
+      <button class="btn btn-primary" type="submit"
+              onclick="return confirm('Move the checked member(s) to the Children\'s church? Their number stays the same, but they\'ll disappear from the adult Members list and attendance.');">
+        <i class="bi bi-arrow-right-circle"></i> Move Selected to Children
+      </button>
+    </div>
+    <div class="table-responsive">
+      <table class="table align-middle">
+        <thead><tr><th style="width:40px;"></th><th>Number</th><th>Name</th><th>Birthday</th><th>Phone</th></tr></thead>
+        <tbody>
+        {% for m in members %}
+          <tr>
+            <td>
+              <input class="form-check-input member-checkbox" type="checkbox" name="member_ids" value="{{ m.id }}">
+            </td>
+            <td><span class="badge bg-dark">{{ m.member_number }}</span></td>
+            <td>{{ m.full_name }}</td>
+            <td>{{ m.date_of_birth.strftime('%d %b') if m.date_of_birth else '-' }}</td>
+            <td>{{ m.phone or '-' }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="5" class="text-center text-muted py-4">No adult members found.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if members %}
+    <button class="btn btn-primary" type="submit"
+            onclick="return confirm('Move the checked member(s) to the Children\'s church? Their number stays the same, but they\'ll disappear from the adult Members list and attendance.');">
+      <i class="bi bi-arrow-right-circle"></i> Move Selected to Children
+    </button>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.getElementById('select-all').addEventListener('change', function () {
+    document.querySelectorAll('.member-checkbox').forEach(function (cb) {
+      cb.checked = this.checked;
+    }.bind(this));
+  });
+</script>
+{% endblock %}
