@@ -549,6 +549,57 @@ def mark_attendance():
     return redirect(url_for("admin_dashboard"))
 
 
+@app.route("/admin/attendance/checklist", methods=["GET", "POST"])
+@role_required("admin")
+def admin_attendance_checklist():
+    church = current_user.church
+    today = date.today()
+
+    if request.method == "POST":
+        checked_ids = {int(v) for v in request.form.getlist("member_ids") if v.isdigit()}
+        already_present_ids = {
+            r[0] for r in db.session.query(Attendance.member_id).filter(
+                Attendance.church_id == church.id, Attendance.service_date == today,
+            ).all()
+        }
+        to_mark = checked_ids - already_present_ids
+        marked_count = 0
+        if to_mark:
+            # Only mark members that actually belong to this church and are active —
+            # never trust checkbox values from the submitted form alone.
+            eligible = Member.query.filter(
+                Member.id.in_(to_mark), Member.church_id == church.id, Member.left_at.is_(None),
+            ).all()
+            for member in eligible:
+                db.session.add(Attendance(member_id=member.id, church_id=church.id, service_date=today))
+                marked_count += 1
+            if marked_count:
+                db.session.commit()
+
+        if marked_count:
+            flash(f"Marked {marked_count} member(s) present for today.", "success")
+        else:
+            flash("No new attendance to record — everyone checked was already marked present today.", "info")
+        return redirect(url_for("admin_attendance_checklist"))
+
+    q = request.args.get("q", "").strip()
+    query = Member.query.filter_by(church_id=church.id, left_at=None)
+    if q:
+        like = f"%{q}%"
+        query = query.filter(db.or_(Member.full_name.ilike(like), Member.member_number.ilike(like)))
+    members = query.order_by(Member.full_name).all()
+
+    present_ids = {
+        r[0] for r in db.session.query(Attendance.member_id).filter(
+            Attendance.church_id == church.id, Attendance.service_date == today,
+        ).all()
+    }
+    return render_template(
+        "admin/attendance_checklist.html", members=members, q=q,
+        present_ids=present_ids, today=today,
+    )
+
+
 @app.route("/admin/members")
 @role_required("admin")
 def admin_members():

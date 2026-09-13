@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Take Attendance{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <div>
+    <h3 class="mb-0"><i class="bi bi-list-check"></i> Take Attendance</h3>
+    <span class="text-muted">{{ today.strftime('%A, %d %B %Y') }} &middot; tick everyone present, then submit.</span>
+  </div>
+  <a href="{{ url_for('admin_dashboard') }}" class="btn btn-light">Back to Dashboard</a>
+</div>
+
+<form method="get" class="mb-3">
+  <div class="input-group" style="max-width:400px;">
+    <input type="text" class="form-control" name="q" value="{{ q or '' }}" placeholder="Search name or member number">
+    <button class="btn btn-outline-secondary">Search</button>
+  </div>
+</form>
+
+<form method="post">
+  <div class="card p-3">
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="select-all">
+        <label class="form-check-label" for="select-all">Select / deselect all shown below</label>
+      </div>
+      <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle"></i> Mark Selected Present</button>
+    </div>
+    <div class="table-responsive">
+      <table class="table align-middle">
+        <thead><tr><th style="width:40px;"></th><th>Number</th><th>Name</th><th>Phone</th><th></th></tr></thead>
+        <tbody>
+        {% for m in members %}
+          <tr>
+            <td>
+              <input class="form-check-input member-checkbox" type="checkbox" name="member_ids" value="{{ m.id }}"
+                     {{ 'checked' if m.id in present_ids else '' }}>
+            </td>
+            <td><span class="badge bg-dark">{{ m.member_number }}</span></td>
+            <td>{{ m.full_name }}</td>
+            <td>{{ m.phone or '-' }}</td>
+            <td>
+              {% if m.id in present_ids %}
+                <span class="badge bg-success">Already present today</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="5" class="text-center text-muted py-4">No members found.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if members %}
+    <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle"></i> Mark Selected Present</button>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.getElementById('select-all').addEventListener('change', function () {
+    document.querySelectorAll('.member-checkbox').forEach(function (cb) {
+      cb.checked = this.checked;
+    }.bind(this));
+  });
+</script>
+{% endblock %}
