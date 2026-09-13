@@ -1,14 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-  <div>
-    <h3 class="mb-0">Welcome, {{ current_user.full_name or current_user.username }}</h3>
-    <span class="text-muted">{{ church.name }} &middot; {{ today.strftime('%A, %d %B %Y') }}</span>
-  </div>
+
+<div class="d-flex justify-content-end mb-3">
   <form method="post" action="{{ url_for('admin_toggle_edit_all') }}"
         onsubmit="return confirm('{{ 'Lock all member records so they can no longer be edited?' if all_editable else 'Unlock ALL member records for editing?' }}');">
-    <button class="btn {{ 'btn-outline-danger' if all_editable else 'btn-outline-success' }}">
+    <button class="btn btn-sm {{ 'btn-outline-danger' if all_editable else 'btn-outline-success' }}">
       <i class="bi bi-unlock{{ '' if all_editable else '-fill' }}"></i>
       {{ 'Disable Editing for All Members' if all_editable else 'Enable Editing for All Members' }}
     </button>
@@ -16,31 +13,65 @@
 </div>
 
 <div class="row g-3 mb-4">
-  <div class="col-md-3">
-    <div class="card stat-card p-3" style="background:#0f9d76;">
-      <div class="small">Total Members</div><h2>{{ total_members }}</h2>
+  <div class="col-6 col-lg-3">
+    <div class="stat-tile tone-green">
+      <div class="stat-icon"><i class="bi bi-people-fill"></i></div>
+      <div class="stat-label">Total Members</div>
+      <div class="stat-value">{{ total_members }}</div>
+      {% if total_members_trend is not none %}
+        <div class="stat-trend {{ 'up' if total_members_trend >= 0 else 'down' }}">
+          <i class="bi bi-arrow-{{ 'up' if total_members_trend >= 0 else 'down' }}"></i> {{ total_members_trend }}% vs last month
+        </div>
+      {% else %}
+        <div class="stat-trend flat">New this month</div>
+      {% endif %}
     </div>
   </div>
-  <div class="col-md-3">
-    <div class="card stat-card p-3" style="background:#2c3e91;">
-      <div class="small">Present Today</div><h2>{{ present_today }}</h2>
+  <div class="col-6 col-lg-3">
+    <div class="stat-tile tone-blue">
+      <div class="stat-icon"><i class="bi bi-calendar2-check-fill"></i></div>
+      <div class="stat-label">Present Today</div>
+      <div class="stat-value">{{ present_today }}</div>
+      {% if present_trend is not none %}
+        <div class="stat-trend {{ 'up' if present_trend >= 0 else 'down' }}">
+          <i class="bi bi-arrow-{{ 'up' if present_trend >= 0 else 'down' }}"></i> {{ present_trend }}% vs last week
+        </div>
+      {% else %}
+        <div class="stat-trend flat">No data last week</div>
+      {% endif %}
     </div>
   </div>
-  <div class="col-md-3">
-    <div class="card stat-card p-3" style="background:#c0392b;">
-      <div class="small">Absent Today</div><h2>{{ total_members - present_today }}</h2>
+  <div class="col-6 col-lg-3">
+    <div class="stat-tile tone-red">
+      <div class="stat-icon"><i class="bi bi-person-x-fill"></i></div>
+      <div class="stat-label">Absent Today</div>
+      <div class="stat-value">{{ absent_today }}</div>
+      {% if absent_trend is not none %}
+        <div class="stat-trend {{ 'down' if absent_trend <= 0 else 'up' }}">
+          <i class="bi bi-arrow-{{ 'up' if absent_trend >= 0 else 'down' }}"></i> {{ absent_trend }}% vs last week
+        </div>
+      {% else %}
+        <div class="stat-trend flat">No data last week</div>
+      {% endif %}
     </div>
   </div>
-  <div class="col-md-3">
-    <div class="card stat-card p-3" style="background:#e67e22;">
-      <div class="small">Birthdays This Month</div><h2>{{ birthdays|length }}</h2>
+  <div class="col-6 col-lg-3">
+    <div class="stat-tile tone-orange">
+      <div class="stat-icon"><i class="bi bi-gift-fill"></i></div>
+      <div class="stat-label">Birthdays This Month</div>
+      <div class="stat-value">{{ birthdays|length }}</div>
+      <div class="stat-trend flat">
+        {% if birthdays_delta == 0 %}same as last month
+        {% elif birthdays_delta > 0 %}+{{ birthdays_delta }} vs last month
+        {% else %}{{ birthdays_delta }} vs last month{% endif %}
+      </div>
     </div>
   </div>
 </div>
 
 <div class="row g-3">
-  <div class="col-md-5">
-    <div class="card p-3">
+  <div class="col-lg-5">
+    <div class="card p-3 h-100">
       <h5><i class="bi bi-check2-circle"></i> Mark Attendance</h5>
       <form method="post" action="{{ url_for('mark_attendance') }}" class="mt-3">
         <div class="mb-3">
@@ -50,7 +81,7 @@
                     required autofocus></textarea>
           <div class="form-text">Enter one number to check in one person, or several — separated by spaces, commas, or new lines — to mark a whole group at once.</div>
         </div>
-        <button class="btn btn-primary w-100" type="submit">Mark Present</button>
+        <button class="btn btn-primary w-100" type="submit"><i class="bi bi-check2-circle"></i> Mark Present</button>
       </form>
       <div class="text-center mt-2">
         <a href="{{ url_for('admin_attendance_checklist') }}"><i class="bi bi-list-check"></i> Or tick names from the full member list instead</a>
@@ -59,17 +90,25 @@
       <a href="{{ url_for('admin_new_member') }}" class="btn btn-outline-success w-100"><i class="bi bi-person-plus"></i> Register First Timer</a>
     </div>
   </div>
-  <div class="col-md-7">
-    <div class="card p-3">
-      <h5><i class="bi bi-list-check"></i> Checked in today</h5>
-      <div class="table-responsive" style="max-height:340px; overflow:auto;">
-        <table class="table table-sm">
+  <div class="col-lg-7">
+    <div class="card p-3 h-100">
+      <div class="d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-list-check"></i> Checked in today</h5>
+        <a href="{{ url_for('admin_attendance_checklist') }}" class="small">View All <i class="bi bi-chevron-right"></i></a>
+      </div>
+      <div class="table-responsive mt-2" style="max-height:360px; overflow:auto;">
+        <table class="table table-sm align-middle">
           <thead><tr><th>#</th><th>Name</th><th>Number</th><th>Time</th></tr></thead>
           <tbody>
           {% for a in todays_attendance %}
             <tr>
               <td>{{ loop.index }}</td>
-              <td>{{ a.member.full_name }}</td>
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="avatar-circle" style="background:{{ a.member.id|avatar_color }};">{{ a.member.full_name|initials }}</span>
+                  {{ a.member.full_name }}
+                </div>
+              </td>
               <td>{{ a.member.member_number }}</td>
               <td>{{ a.marked_at.strftime('%I:%M %p') }}</td>
             </tr>
@@ -84,30 +123,87 @@
 </div>
 
 <div class="row g-3 mt-1">
-  <div class="col-md-6">
-    <div class="card p-3 h-100 d-flex flex-row justify-content-between align-items-center flex-wrap gap-2">
-      <div>
-        <h5 class="mb-1"><i class="bi bi-emoji-smile"></i> Children's Church</h5>
-        <p class="text-muted mb-0">
-          {{ child_count }} child(ren) registered separately, with their own attendance.
-        </p>
+  <div class="col-lg-8">
+    <div class="card p-3 h-100">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+        <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Attendance Overview</h5>
+        <div class="btn-group btn-group-sm" role="group">
+          <button type="button" class="btn btn-primary" data-range="weekly">Weekly</button>
+          <button type="button" class="btn btn-outline-primary" data-range="monthly">Monthly</button>
+          <button type="button" class="btn btn-outline-primary" data-range="yearly">Yearly</button>
+        </div>
       </div>
-      <div class="d-flex gap-2">
-        <a href="{{ url_for('admin_children_checklist') }}" class="btn btn-success">Take Attendance</a>
-        <a href="{{ url_for('admin_children') }}" class="btn btn-outline-secondary">Manage</a>
+      <canvas id="attendanceChart" height="110"></canvas>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card p-3 h-100">
+      <h6 class="text-muted mb-3">Today</h6>
+      <div class="mb-2">
+        <div class="text-muted small">Total Members</div>
+        <div class="fs-3 fw-bold">{{ total_members }}</div>
+      </div>
+      <div class="d-flex justify-content-between mt-3">
+        <div class="ring-stat">
+          <svg width="56" height="56" viewBox="0 0 56 56">
+            <circle cx="28" cy="28" r="24" fill="none" stroke="#eef0f6" stroke-width="6"/>
+            <circle cx="28" cy="28" r="24" fill="none" stroke="#0f9d76" stroke-width="6"
+                    stroke-dasharray="{{ (150.8 * present_pct / 100)|round(1) }} 150.8" stroke-linecap="round"/>
+          </svg>
+          <div>
+            <div class="fw-bold">{{ present_today }}</div>
+            <div class="text-muted small">Present ({{ present_pct }}%)</div>
+          </div>
+        </div>
+      </div>
+      <div class="d-flex justify-content-between mt-3">
+        <div class="ring-stat">
+          <svg width="56" height="56" viewBox="0 0 56 56">
+            <circle cx="28" cy="28" r="24" fill="none" stroke="#eef0f6" stroke-width="6"/>
+            <circle cx="28" cy="28" r="24" fill="none" stroke="#e8474f" stroke-width="6"
+                    stroke-dasharray="{{ (150.8 * absent_pct / 100)|round(1) }} 150.8" stroke-linecap="round"/>
+          </svg>
+          <div>
+            <div class="fw-bold">{{ absent_today }}</div>
+            <div class="text-muted small">Absent ({{ absent_pct }}%)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mt-1">
+  <div class="col-md-6">
+    <div class="dash-illustration tone-green">
+      <div class="d-flex justify-content-between align-items-start">
+        <div class="illus-icon"><i class="bi bi-emoji-smile"></i></div>
+      </div>
+      <div>
+        <h5 class="mb-1 mt-2">Children's Church</h5>
+        <p class="text-muted mb-0">{{ child_count }} child(ren) registered separately, with their own attendance.</p>
+      </div>
+      <div class="d-flex gap-2 mt-3">
+        <a href="{{ url_for('admin_children_checklist') }}" class="btn btn-success btn-sm">Take Attendance</a>
+        <a href="{{ url_for('admin_children') }}" class="btn btn-outline-secondary btn-sm">Manage</a>
       </div>
     </div>
   </div>
   <div class="col-md-6">
-    <div class="card p-3 h-100 d-flex flex-row justify-content-between align-items-center flex-wrap gap-2">
+    <div class="dash-illustration tone-purple">
+      <div class="d-flex justify-content-between align-items-start">
+        <div class="illus-icon"><i class="bi bi-person-dash"></i></div>
+      </div>
       <div>
-        <h5 class="mb-1"><i class="bi bi-person-dash"></i> Members Who Left</h5>
+        <h5 class="mb-1 mt-2">Members Who Left</h5>
         <p class="text-muted mb-0">
-          {{ left_count }} member(s) no longer attending this church. Move someone out from the
-          <a href="{{ url_for('admin_members') }}">Members list</a>, or review/restore who's already been moved.
+          {{ left_count }} member(s) no longer attending. Move someone out from the
+          <a href="{{ url_for('admin_members') }}">Members list</a>.
         </p>
       </div>
-      <a href="{{ url_for('admin_members_left') }}" class="btn btn-outline-secondary">Manage</a>
+      <div class="d-flex gap-2 mt-3">
+        <a href="{{ url_for('admin_members_left') }}" class="btn btn-outline-secondary btn-sm">Manage</a>
+      </div>
     </div>
   </div>
 </div>
@@ -137,4 +233,53 @@
   </div>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+  var attendanceSeries = {{ chart_series|tojson }};
+  var ctx = document.getElementById('attendanceChart').getContext('2d');
+  var chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: attendanceSeries.weekly.labels,
+      datasets: [
+        {
+          label: 'Present',
+          data: attendanceSeries.weekly.present,
+          borderColor: '#2f5cf6',
+          backgroundColor: 'rgba(47,92,246,.12)',
+          tension: .35, fill: true, pointRadius: 3,
+        },
+        {
+          label: 'Absent',
+          data: attendanceSeries.weekly.absent,
+          borderColor: '#e8474f',
+          backgroundColor: 'rgba(232,71,79,.10)',
+          tension: .35, fill: true, pointRadius: 3,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'top', labels: { usePointStyle: true } } },
+      scales: { y: { beginAtZero: true } },
+    },
+  });
+
+  document.querySelectorAll('[data-range]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('[data-range]').forEach(function (b) {
+        b.classList.remove('btn-primary'); b.classList.add('btn-outline-primary');
+      });
+      btn.classList.remove('btn-outline-primary'); btn.classList.add('btn-primary');
+      var series = attendanceSeries[btn.dataset.range];
+      chart.data.labels = series.labels;
+      chart.data.datasets[0].data = series.present;
+      chart.data.datasets[1].data = series.absent;
+      chart.update();
+    });
+  });
+</script>
 {% endblock %}

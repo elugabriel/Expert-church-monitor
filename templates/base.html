@@ -4,44 +4,110 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}{{ app_name }}{% endblock %} &middot; {{ app_name }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
 </head>
 <body>
-<nav class="navbar navbar-expand-lg navbar-dark" style="background:#1f2d3d;">
-  <div class="container-fluid">
-    <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('index') }}">
-      <img src="{{ url_for('static', filename='branding/company_logo.png') }}" alt="Company logo"
-           height="32" style="background:#fff; padding:3px 6px; border-radius:6px;">
-      {{ app_name }}
-    </a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="nav">
-      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-        {% if current_user.is_authenticated and current_user.role == 'superadmin' %}
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('superadmin_dashboard') }}">Churches</a></li>
-        {% elif current_user.is_authenticated and current_user.role == 'admin' %}
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_dashboard') }}">Dashboard</a></li>
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_members') }}">Members</a></li>
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_children') }}">Children</a></li>
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_absentee_report') }}">Absentee Report</a></li>
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_church_profile') }}">My Church</a></li>
-        {% endif %}
-      </ul>
-      {% if current_user.is_authenticated %}
-      <span class="navbar-text text-light me-3">
-        <i class="bi bi-person-circle"></i> {{ current_user.username }}
-        <span class="badge bg-secondary text-uppercase">{{ current_user.role }}</span>
-      </span>
-      <a class="btn btn-outline-light btn-sm" href="{{ url_for('logout') }}">Logout</a>
+{% if current_user.is_authenticated %}
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <svg class="brand-watermark" viewBox="0 0 200 160" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M0 150 L55 108 L100 78 L145 108 L200 150 Z" fill="#fff" opacity=".05"/>
+        <rect x="82" y="62" width="36" height="60" fill="#fff" opacity=".06"/>
+        <path d="M78 62 L100 40 L122 62 Z" fill="#fff" opacity=".06"/>
+        <rect x="97" y="16" width="6" height="26" fill="#fff" opacity=".06"/>
+        <rect x="90" y="24" width="20" height="6" fill="#fff" opacity=".06"/>
+      </svg>
+      {% if current_user.role == 'admin' and current_user.church and current_user.church.logo_filename %}
+        <img class="brand-logo" src="{{ url_for('uploaded_file', filename=current_user.church.logo_filename) }}" alt="">
+      {% else %}
+        <img class="brand-logo" src="{{ url_for('static', filename='branding/company_logo.png') }}" alt="">
       {% endif %}
+      <div>
+        <div class="brand-title">{{ current_user.church.name if current_user.role == 'admin' and current_user.church else app_name }}</div>
+        <div class="brand-sub">Attendance System</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      {% if current_user.role == 'superadmin' %}
+        <a class="nav-link {{ 'active' if request.path.startswith('/superadmin') else '' }}" href="{{ url_for('superadmin_dashboard') }}">
+          <i class="bi bi-building"></i> Churches
+        </a>
+      {% elif current_user.role == 'admin' %}
+        <a class="nav-link {{ 'active' if request.path == url_for('admin_dashboard') else '' }}" href="{{ url_for('admin_dashboard') }}">
+          <i class="bi bi-speedometer2"></i> Dashboard
+        </a>
+        <a class="nav-link {{ 'active' if request.path.startswith('/admin/members') else '' }}" href="{{ url_for('admin_members') }}">
+          <i class="bi bi-people"></i> Members
+        </a>
+        <a class="nav-link {{ 'active' if request.path.startswith('/admin/children') else '' }}" href="{{ url_for('admin_children') }}">
+          <i class="bi bi-emoji-smile"></i> Children
+        </a>
+        <a class="nav-link {{ 'active' if request.path.startswith('/admin/attendance') else '' }}" href="{{ url_for('admin_attendance_checklist') }}">
+          <i class="bi bi-check2-square"></i> Attendance
+        </a>
+        <a class="nav-link {{ 'active' if request.path.startswith('/admin/reports') else '' }}" href="{{ url_for('admin_absentee_report') }}">
+          <i class="bi bi-bar-chart"></i> Reports
+        </a>
+        <a class="nav-link {{ 'active' if request.path.startswith('/admin/church-profile') else '' }}" href="{{ url_for('admin_church_profile') }}">
+          <i class="bi bi-gear"></i> Settings
+        </a>
+      {% endif %}
+    </nav>
+    <div class="sidebar-verse">
+      <i class="bi bi-book-half verse-icon"></i>
+      <div class="verse-text">&ldquo;{{ sidebar_verse_text }}&rdquo;</div>
+      <span class="verse-ref">{{ sidebar_verse_ref }}</span>
+    </div>
+  </aside>
+
+  <div class="main-area">
+    <div class="topbar">
+      <button class="sidebar-toggle mb-2" id="sidebarToggle" type="button" aria-label="Toggle menu">
+        <i class="bi bi-list fs-4"></i>
+      </button>
+      {% block topbar %}
+        <div class="topbar-greeting-row">
+          <svg class="hero-illustration" viewBox="0 0 260 170" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M0 165 L70 110 L130 70 L190 110 L260 165 Z" fill="#6f86c9" opacity=".35"/>
+            <rect x="105" y="78" width="50" height="82" rx="2" fill="#4f68ab" opacity=".55"/>
+            <path d="M98 78 L130 48 L162 78 Z" fill="#4f68ab" opacity=".55"/>
+            <rect x="126" y="14" width="8" height="34" fill="#4f68ab" opacity=".55"/>
+            <rect x="115" y="24" width="30" height="8" fill="#4f68ab" opacity=".55"/>
+            <circle cx="205" cy="35" r="20" fill="#ffd678" opacity=".65"/>
+          </svg>
+          <div class="topbar-greeting">
+            <div class="greeting-small">{{ greeting_word }},</div>
+            <div class="greeting-name">{{ current_user.full_name or current_user.username }}</div>
+            {% if current_user.role == 'admin' and current_user.church %}
+              <div class="greeting-sub">{{ current_user.church.name }} &middot; {{ today.strftime('%A, %d %B %Y') }}</div>
+            {% endif %}
+            <div class="topbar-tagline mt-2">Worship &middot; Fellowship &middot; Service</div>
+          </div>
+          <div class="topbar-actions">
+            <span class="topbar-pill"><i class="bi bi-calendar3"></i> {{ today.strftime('%d %b %Y') }}</span>
+            {% if current_user.role == 'admin' %}
+            <a href="{{ url_for('admin_dashboard') }}" class="topbar-icon-btn" title="Birthdays this month">
+              <i class="bi bi-bell"></i>
+              {% if global_birthday_count %}<span class="ping-badge">{{ global_birthday_count }}</span>{% endif %}
+            </a>
+            {% endif %}
+            <div class="topbar-user">
+              <div class="user-avatar">{{ (current_user.full_name or current_user.username)[0]|upper }}</div>
+              <span class="user-name">{{ current_user.full_name or current_user.username }}</span>
+              <a href="{{ url_for('logout') }}" class="text-muted" title="Logout"><i class="bi bi-box-arrow-right"></i></a>
+            </div>
+          </div>
+        </div>
+      {% endblock %}
     </div>
   </div>
-</nav>
-<div class="container my-4">
+{% endif %}
+
+<div class="{{ 'page-body' if current_user.is_authenticated else 'container my-4' }}">
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
       {% for category, message in messages %}
@@ -55,6 +121,7 @@
   {% block content %}{% endblock %}
   <footer class="text-center mt-5 pb-3">{{ app_name }} &middot; {{ now_year }} &middot; Powered by Expert Media Solutions</footer>
 </div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 {% block scripts %}{% endblock %}

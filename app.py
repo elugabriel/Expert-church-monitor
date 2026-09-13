@@ -26,7 +26,7 @@ import uuid
 import secrets
 import click
 from functools import wraps
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 from flask import (
     Flask, request, redirect, url_for, flash, render_template,
@@ -264,9 +264,59 @@ def build_birthday(day_value, month_value):
         return None
 
 
+SIDEBAR_VERSES = [
+    ("For where two or three are gathered together in my name, there am I in the midst of them.", "Matthew 18:20"),
+    ("Not forsaking the assembling of ourselves together, as the manner of some is; but exhorting one another.", "Hebrews 10:25"),
+    ("I was glad when they said unto me, Let us go into the house of the LORD.", "Psalm 122:1"),
+    ("Behold, how good and how pleasant it is for brethren to dwell together in unity!", "Psalm 133:1"),
+]
+
+AVATAR_PALETTE = ["#2f5cf6", "#0f9d76", "#e8474f", "#f2a93b", "#7c5cf6", "#0891b2", "#c2410c", "#65a30d"]
+
+
+@app.template_filter("initials")
+def initials_filter(name):
+    parts = [p for p in (name or "").strip().split() if p]
+    if not parts:
+        return "?"
+    if len(parts) == 1:
+        return parts[0][0].upper()
+    return (parts[0][0] + parts[-1][0]).upper()
+
+
+@app.template_filter("avatar_color")
+def avatar_color_filter(member_id):
+    return AVATAR_PALETTE[(member_id or 0) % len(AVATAR_PALETTE)]
+
+
 @app.context_processor
 def inject_globals():
-    return {"now_year": datetime.utcnow().year, "app_name": APP_NAME, "month_names": MONTH_NAMES}
+    hour = datetime.now().hour
+    if hour < 12:
+        greeting_word = "Good Morning"
+    elif hour < 17:
+        greeting_word = "Good Afternoon"
+    else:
+        greeting_word = "Good Evening"
+
+    birthday_count = 0
+    if current_user.is_authenticated and current_user.role == "admin" and current_user.church_id:
+        today = date.today()
+        birthday_count = Member.query.filter(
+            Member.church_id == current_user.church_id,
+            Member.left_at.is_(None), Member.is_child.is_(False),
+            Member.date_of_birth.isnot(None),
+            extract("month", Member.date_of_birth) == today.month,
+        ).count()
+
+    verse_text, verse_ref = SIDEBAR_VERSES[date.today().toordinal() % len(SIDEBAR_VERSES)]
+
+    return {
+        "now_year": datetime.utcnow().year, "app_name": APP_NAME, "month_names": MONTH_NAMES,
+        "greeting_word": greeting_word, "global_birthday_count": birthday_count,
+        "sidebar_verse_text": verse_text, "sidebar_verse_ref": verse_ref,
+        "today": date.today(),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -440,6 +490,70 @@ def superadmin_delete_admin(admin_id):
 # Admin routes
 # ---------------------------------------------------------------------------
 
+def pct_change(old, new):
+    """Percentage change from old to new, or None when it can't be meaningfully computed."""
+    if not old:
+        return None
+    return round((new - old) / old * 100)
+
+
+def _attendance_series(church_id, total_members_now):
+    """Present/absent series for the weekly / monthly / yearly chart toggle,
+    built from one grouped query over the trailing 12 months of real attendance."""
+    today = date.today()
+
+    first_of_this_month = today.replace(day=1)
+    y, m = first_of_this_month.year, first_of_this_month.month
+    months = [(y, m)]
+    for _ in range(11):
+        m -= 1
+        if m == 0:
+            m, y = 12, y - 1
+        months.append((y, m))
+    months.reverse()
+    range_start = date(months[0][0], months[0][1], 1)
+
+    rows = (
+        db.session.query(Attendance.service_date, func.count(Attendance.id))
+        .join(Member)
+        .filter(
+            Attendance.church_id == church_id, Member.is_child.is_(False),
+            Attendance.service_date >= range_start, Attendance.service_date <= today,
+        )
+        .group_by(Attendance.service_date).all()
+    )
+    present_by_date = dict(rows)
+
+    weekly = {"labels": [], "present": [], "absent": []}
+    for i in range(6, -1, -1):
+        d = today - timedelta(days=i)
+        p = present_by_date.get(d, 0)
+        weekly["labels"].append(d.strftime("%d %b"))
+        weekly["present"].append(p)
+        weekly["absent"].append(max(total_members_now - p, 0))
+
+    monthly = {"labels": [], "present": [], "absent": []}
+    for i in range(29, -1, -1):
+        d = today - timedelta(days=i)
+        p = present_by_date.get(d, 0)
+        monthly["labels"].append(d.strftime("%d %b"))
+        monthly["present"].append(p)
+        monthly["absent"].append(max(total_members_now - p, 0))
+
+    yearly = {"labels": [], "present": [], "absent": []}
+    for (yy, mm) in months:
+        start = date(yy, mm, 1)
+        end = date(yy + 1, 1, 1) if mm == 12 else date(yy, mm + 1, 1)
+        month_dates = [d for d in present_by_date if start <= d < end]
+        present_sum = sum(present_by_date[d] for d in month_dates)
+        possible = total_members_now * len(month_dates)
+        yearly["labels"].append(start.strftime("%b %Y"))
+        yearly["present"].append(present_sum)
+        yearly["absent"].append(max(possible - present_sum, 0))
+
+    return {"weekly": weekly, "monthly": monthly, "yearly": yearly}
+
+
 @app.route("/admin")
 @role_required("admin")
 def admin_dashboard():
@@ -456,6 +570,7 @@ def admin_dashboard():
         ).order_by(Attendance.marked_at.desc()).all()
     )
     present_today = len(todays_attendance)
+    absent_today = max(total_members - present_today, 0)
     birthdays = (
         Member.query.filter(
             Member.church_id == church.id,
@@ -465,11 +580,42 @@ def admin_dashboard():
             extract("month", Member.date_of_birth) == today.month,
         ).order_by(extract("day", Member.date_of_birth)).all()
     )
+
+    # --- Real trend indicators for the stat tiles ---
+    thirty_days_ago = today - timedelta(days=30)
+    total_members_30d_ago = Member.query.filter(
+        Member.church_id == church.id, Member.is_child.is_(False), Member.joined_at <= thirty_days_ago,
+    ).count()
+    total_members_trend = pct_change(total_members_30d_ago, total_members)
+
+    a_week_ago = today - timedelta(days=7)
+    present_last_week = Attendance.query.join(Member).filter(
+        Attendance.church_id == church.id, Attendance.service_date == a_week_ago, Member.is_child.is_(False),
+    ).count()
+    present_trend = pct_change(present_last_week, present_today)
+    absent_last_week = max(total_members - present_last_week, 0)
+    absent_trend = pct_change(absent_last_week, absent_today)
+
+    last_month_date = (today.replace(day=1) - timedelta(days=1))
+    birthdays_last_month = Member.query.filter(
+        Member.church_id == church.id, Member.left_at.is_(None), Member.is_child.is_(False),
+        Member.date_of_birth.isnot(None),
+        extract("month", Member.date_of_birth) == last_month_date.month,
+    ).count()
+    birthdays_delta = len(birthdays) - birthdays_last_month
+
+    chart_series = _attendance_series(church.id, total_members)
+    present_pct = round(present_today / total_members * 100) if total_members else 0
+    absent_pct = 100 - present_pct if total_members else 0
+
     return render_template(
         "admin/dashboard.html", church=church, today=today,
-        total_members=total_members, present_today=present_today,
+        total_members=total_members, present_today=present_today, absent_today=absent_today,
         todays_attendance=todays_attendance, birthdays=birthdays,
         all_editable=all_editable, left_count=left_count, child_count=child_count,
+        total_members_trend=total_members_trend, present_trend=present_trend,
+        absent_trend=absent_trend, birthdays_delta=birthdays_delta,
+        chart_series=chart_series, present_pct=present_pct, absent_pct=absent_pct,
     )
 
 
