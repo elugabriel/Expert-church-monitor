@@ -67,6 +67,17 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True}
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Nigeria (WAT) is a fixed UTC+1 offset year-round — no DST to account for.
+NIGERIA_OFFSET = timedelta(hours=1)
+
+
+@app.template_filter("lagos_time")
+def lagos_time(dt):
+    """Convert a naive UTC datetime (as stored in the db) to Nigeria local time for display."""
+    if dt is None:
+        return dt
+    return dt + NIGERIA_OFFSET
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = 3 * 1024 * 1024  # 3 MB uploads
 

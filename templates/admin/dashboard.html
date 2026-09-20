@@ -110,7 +110,7 @@
                 </div>
               </td>
               <td>{{ a.member.member_number }}</td>
-              <td>{{ a.marked_at.strftime('%I:%M %p') }}</td>
+              <td>{{ (a.marked_at | lagos_time).strftime('%I:%M %p') }}</td>
             </tr>
           {% else %}
             <tr><td colspan="4" class="text-center text-muted py-3">No one checked in yet today.</td></tr>
