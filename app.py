@@ -713,12 +713,15 @@ def _attendance_checklist_view(is_child, redirect_endpoint, template):
 
     if request.method == "POST":
         checked_ids = {int(v) for v in request.form.getlist("member_ids") if v.isdigit()}
+        shown_ids = {int(v) for v in request.form.getlist("shown_ids") if v.isdigit()}
         already_present_ids = {
             r[0] for r in db.session.query(Attendance.member_id).filter(
                 Attendance.church_id == church.id, Attendance.service_date == today,
             ).all()
         }
         to_mark = checked_ids - already_present_ids
+        # Members shown on this page that were present but got unticked should be removed.
+        to_unmark = (already_present_ids & shown_ids) - checked_ids
         marked_count = 0
         if to_mark:
             # Only mark members that actually belong to this church, are active, and
@@ -730,13 +733,25 @@ def _attendance_checklist_view(is_child, redirect_endpoint, template):
             for member in eligible:
                 db.session.add(Attendance(member_id=member.id, church_id=church.id, service_date=today))
                 marked_count += 1
-            if marked_count:
-                db.session.commit()
 
-        if marked_count:
+        unmarked_count = 0
+        if to_unmark:
+            unmarked_count = Attendance.query.filter(
+                Attendance.member_id.in_(to_unmark), Attendance.church_id == church.id,
+                Attendance.service_date == today,
+            ).delete(synchronize_session=False)
+
+        if marked_count or unmarked_count:
+            db.session.commit()
+
+        if marked_count and unmarked_count:
+            flash(f"Marked {marked_count} {label}(s) present and removed {unmarked_count} for today.", "success")
+        elif marked_count:
             flash(f"Marked {marked_count} {label}(s) present for today.", "success")
+        elif unmarked_count:
+            flash(f"Removed {unmarked_count} {label}(s) from today's attendance.", "success")
         else:
-            flash(f"No new attendance to record — everyone checked was already marked present today.", "info")
+            flash(f"No changes — attendance for today is unchanged.", "info")
         return redirect(url_for(redirect_endpoint))
 
     q = request.args.get("q", "").strip()
