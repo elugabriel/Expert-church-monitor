@@ -833,15 +833,16 @@ def admin_children_checklist():
 # ---------------------------------------------------------------------------
 # QR self check-in
 # ---------------------------------------------------------------------------
-# The QR code points at /checkin/<church code>/<token>, where the token is an
-# HMAC of today's date. It changes every day, so a photo of last week's code
-# can't be used to check in from home — display a fresh one each service day.
+# The QR code points at /checkin/<church code>/<token>. The token is permanent
+# so the code can be printed once and stuck on chairs; the check-in page itself
+# always works on today's date. If the link leaks, an admin can replace it,
+# which makes every old sticker stop working.
 
-def checkin_token(church, day):
+def checkin_token(church):
     if not church.checkin_secret:
         church.checkin_secret = secrets.token_hex(32)
         db.session.commit()
-    msg = f"{church.id}:{day.isoformat()}".encode()
+    msg = f"{church.id}:checkin".encode()
     return hmac.new(church.checkin_secret.encode(), msg, hashlib.sha256).hexdigest()[:20]
 
 
@@ -859,18 +860,27 @@ def normalize_member_number(raw, church_code):
 @role_required("admin")
 def admin_qr_checkin():
     church = current_user.church
-    today = date.today()
     checkin_url = url_for(
-        "public_checkin", church_code=church.code, token=checkin_token(church, today), _external=True,
+        "public_checkin", church_code=church.code, token=checkin_token(church), _external=True,
     )
-    return render_template("admin/qr_checkin.html", church=church, checkin_url=checkin_url, today=today)
+    return render_template("admin/qr_checkin.html", church=church, checkin_url=checkin_url)
+
+
+@app.route("/admin/qr-checkin/replace", methods=["POST"])
+@role_required("admin")
+def admin_replace_qr():
+    church = current_user.church
+    church.checkin_secret = secrets.token_hex(32)
+    db.session.commit()
+    flash("A new QR code was created. The old printed codes no longer work — print and stick up the new one.", "success")
+    return redirect(url_for("admin_qr_checkin"))
 
 
 @app.route("/checkin/<church_code>/<token>", methods=["GET", "POST"])
 def public_checkin(church_code, token):
     church = Church.query.filter_by(code=church_code.upper()).first_or_404()
     today = date.today()
-    if not hmac.compare_digest(token, checkin_token(church, today)):
+    if not hmac.compare_digest(token, checkin_token(church)):
         return render_template("checkin.html", church=church, expired=True), 410
 
     if request.method == "POST":
