@@ -19,31 +19,94 @@
 </div>
 
 {% if results is not none %}
-<div class="card p-3">
-  <div class="d-flex justify-content-between align-items-center mb-3">
+<form method="post" action="{{ url_for('admin_email_absentees') }}">
+<input type="hidden" name="start" value="{{ start }}">
+<input type="hidden" name="end" value="{{ end }}">
+<div class="card p-3 mb-4">
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <h5 class="mb-0">Absent from {{ start }} to {{ end }} &middot; {{ results|length }} member(s)</h5>
     <a class="btn btn-outline-success btn-sm" href="{{ url_for('admin_absentee_report', start=start, end=end, export=1) }}">
       <i class="bi bi-download"></i> Export CSV
     </a>
   </div>
   <div class="table-responsive">
-  <table class="table">
-    <thead><tr><th>Number</th><th>Name</th><th>Phone</th><th>Email</th><th>Last Attended</th></tr></thead>
+  <table class="table align-middle">
+    <thead><tr>
+      <th style="width:40px;"><input class="form-check-input" type="checkbox" id="select-all" title="Select all who can be emailed"></th>
+      <th>Number</th><th>Name</th><th>Phone</th><th>Email</th><th>Last Attended</th><th>Follow-up</th>
+    </tr></thead>
     <tbody>
     {% for m, last in results %}
       <tr>
+        <td>
+          {% if m.email and m.id not in emailed %}
+            <input class="form-check-input absentee-checkbox" type="checkbox" name="member_ids" value="{{ m.id }}" checked>
+          {% endif %}
+        </td>
         <td><span class="badge bg-dark">{{ m.member_number }}</span></td>
         <td>{{ m.full_name }}</td>
         <td>{{ m.phone or '-' }}</td>
         <td>{{ m.email or '-' }}</td>
         <td>{{ last.strftime('%d %b %Y') if last else 'Never' }}</td>
+        <td>
+          {% if m.id in emailed %}
+            <span class="badge bg-success"><i class="bi bi-envelope-check"></i> Emailed {{ (emailed[m.id]|lagos_time).strftime('%d %b, %I:%M %p') }}</span>
+          {% elif not m.email %}
+            <span class="text-muted small">No email</span>
+          {% else %}
+            <span class="text-muted small">Not yet</span>
+          {% endif %}
+        </td>
       </tr>
     {% else %}
-      <tr><td colspan="5" class="text-center text-muted py-4">Nobody was absent in this range. 🎉</td></tr>
+      <tr><td colspan="7" class="text-center text-muted py-4">Nobody was absent in this range. 🎉</td></tr>
     {% endfor %}
     </tbody>
   </table>
   </div>
 </div>
+
+{% if results %}
+<div class="card p-3">
+  <h5><i class="bi bi-envelope-heart"></i> Email the selected absentees</h5>
+  <p class="text-muted small mb-3">
+    Each member receives this at most once for this date range &mdash; anyone already emailed is skipped automatically.
+    You can personalise it with:
+    {% for p in placeholders %}<code>{{ p }}</code>{{ ', ' if not loop.last }}{% endfor %}.
+  </p>
+  {% if not mail_ready %}
+    <div class="alert alert-warning small">
+      Email sending isn't set up on the server yet. Ask whoever deploys the app to set
+      <code>MAIL_SERVER</code>, <code>MAIL_USERNAME</code> and <code>MAIL_PASSWORD</code>.
+      You can still write and save your message now.
+    </div>
+  {% endif %}
+  <div class="mb-3">
+    <label class="form-label">Subject</label>
+    <input type="text" class="form-control" name="subject" value="{{ email_subject }}" maxlength="200" required>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Message</label>
+    <textarea class="form-control" name="body" rows="12" required>{{ email_body }}</textarea>
+  </div>
+  <button class="btn btn-primary" type="submit"
+          {% if mail_ready %}onclick="return confirm('Send this email to all ticked absentees?');"{% endif %}>
+    <i class="bi bi-send"></i> {{ 'Send to Selected' if mail_ready else 'Save Message' }}
+  </button>
+</div>
 {% endif %}
+</form>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  var selectAll = document.getElementById('select-all');
+  if (selectAll) {
+    selectAll.checked = true;
+    selectAll.addEventListener('change', function () {
+      document.querySelectorAll('.absentee-checkbox').forEach(function (cb) { cb.checked = selectAll.checked; });
+    });
+  }
+</script>
 {% endblock %}

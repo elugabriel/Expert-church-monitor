@@ -49,6 +49,9 @@
         <a class="nav-link {{ 'active' if request.path.startswith('/admin/attendance') else '' }}" href="{{ url_for('admin_attendance_checklist') }}">
           <i class="bi bi-check2-square"></i> Attendance
         </a>
+        <a class="nav-link {{ 'active' if request.path.startswith('/admin/qr-checkin') else '' }}" href="{{ url_for('admin_qr_checkin') }}">
+          <i class="bi bi-qr-code"></i> QR Check-in
+        </a>
         <a class="nav-link {{ 'active' if request.path.startswith('/admin/reports') else '' }}" href="{{ url_for('admin_absentee_report') }}">
           <i class="bi bi-bar-chart"></i> Reports
         </a>

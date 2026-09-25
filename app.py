@@ -23,8 +23,13 @@ import io
 import re
 import csv
 import uuid
+import hmac
+import time
+import hashlib
 import secrets
+import smtplib
 import click
+from email.message import EmailMessage
 from functools import wraps
 from datetime import datetime, date, timedelta
 
@@ -39,6 +44,7 @@ from flask_login import (
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+from werkzeug.middleware.proxy_fix import ProxyFix
 from sqlalchemy import extract, func, inspect, text
 from sqlalchemy.exc import IntegrityError
 
@@ -55,6 +61,9 @@ except ImportError:
 APP_NAME = "Expert Church Monitoring System"
 
 app = Flask(__name__)
+# Behind Render's proxy, trust X-Forwarded-Proto/Host so external URLs (the QR
+# check-in link) come out as https://your-domain rather than http://internal-host.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 
 _db_url = os.environ.get("DATABASE_URL", "sqlite:///church.db")
@@ -83,6 +92,15 @@ app.config["MAX_CONTENT_LENGTH"] = 3 * 1024 * 1024  # 3 MB uploads
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
 
+# Outgoing mail (absentee follow-ups). Any SMTP provider works — for Gmail use
+# smtp.gmail.com / 587 and an App Password, not the account password.
+MAIL_SERVER = os.environ.get("MAIL_SERVER", "")
+MAIL_PORT = int(os.environ.get("MAIL_PORT", "587"))
+MAIL_USERNAME = os.environ.get("MAIL_USERNAME", "")
+MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD", "")
+MAIL_FROM = os.environ.get("MAIL_FROM", "") or MAIL_USERNAME
+MAIL_USE_SSL = os.environ.get("MAIL_USE_SSL", "0") == "1"  # port 465 style; otherwise STARTTLS
+
 db = SQLAlchemy(app)
 
 login_manager = LoginManager(app)
@@ -109,6 +127,9 @@ class Church(db.Model):
     logo_filename = db.Column(db.String(255))
     next_seq = db.Column(db.Integer, default=1, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    checkin_secret = db.Column(db.String(64))  # signs the daily QR check-in link
+    absentee_email_subject = db.Column(db.String(200))  # last-used template, remembered for next time
+    absentee_email_body = db.Column(db.Text)
 
     def next_member_number(self):
         # If every member record for this church has been deleted, start the
@@ -180,6 +201,22 @@ class Attendance(db.Model):
 
     __table_args__ = (
         db.UniqueConstraint("member_id", "service_date", name="uq_member_service_date"),
+    )
+
+
+class AbsenteeEmail(db.Model):
+    """One row per follow-up email sent, so a member is only emailed once per absence period."""
+    __tablename__ = "absentee_email"
+
+    id = db.Column(db.Integer, primary_key=True)
+    member_id = db.Column(db.Integer, db.ForeignKey("member.id"), nullable=False)
+    church_id = db.Column(db.Integer, db.ForeignKey("church.id"), nullable=False)
+    period_start = db.Column(db.Date, nullable=False)
+    period_end = db.Column(db.Date, nullable=False)
+    sent_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint("member_id", "period_start", "period_end", name="uq_absentee_email_period"),
     )
 
 
@@ -452,6 +489,7 @@ def superadmin_delete_church(church_id):
     church = Church.query.get_or_404(church_id)
     member_ids = [m.id for m in church.members]
     Attendance.query.filter(Attendance.member_id.in_(member_ids)).delete(synchronize_session=False)
+    AbsenteeEmail.query.filter_by(church_id=church.id).delete(synchronize_session=False)
     Member.query.filter_by(church_id=church.id).delete(synchronize_session=False)
     User.query.filter_by(church_id=church.id).delete(synchronize_session=False)
     name = church.name
@@ -790,6 +828,74 @@ def admin_attendance_checklist():
 @role_required("admin")
 def admin_children_checklist():
     return _attendance_checklist_view(True, "admin_children_checklist", "admin/children_checklist.html")
+
+
+# ---------------------------------------------------------------------------
+# QR self check-in
+# ---------------------------------------------------------------------------
+# The QR code points at /checkin/<church code>/<token>, where the token is an
+# HMAC of today's date. It changes every day, so a photo of last week's code
+# can't be used to check in from home — display a fresh one each service day.
+
+def checkin_token(church, day):
+    if not church.checkin_secret:
+        church.checkin_secret = secrets.token_hex(32)
+        db.session.commit()
+    msg = f"{church.id}:{day.isoformat()}".encode()
+    return hmac.new(church.checkin_secret.encode(), msg, hashlib.sha256).hexdigest()[:20]
+
+
+def normalize_member_number(raw, church_code):
+    """Accept 'UP-0001', 'up0001', 'UP 0001' or just '1' / '0001' and return 'UP-0001'."""
+    value = re.sub(r"[\s-]+", "", (raw or "").upper())
+    if value.isdigit():
+        return f"{church_code}-{int(value):04d}"
+    if value.startswith(church_code) and value[len(church_code):].isdigit():
+        return f"{church_code}-{int(value[len(church_code):]):04d}"
+    return (raw or "").strip().upper()
+
+
+@app.route("/admin/qr-checkin")
+@role_required("admin")
+def admin_qr_checkin():
+    church = current_user.church
+    today = date.today()
+    checkin_url = url_for(
+        "public_checkin", church_code=church.code, token=checkin_token(church, today), _external=True,
+    )
+    return render_template("admin/qr_checkin.html", church=church, checkin_url=checkin_url, today=today)
+
+
+@app.route("/checkin/<church_code>/<token>", methods=["GET", "POST"])
+def public_checkin(church_code, token):
+    church = Church.query.filter_by(code=church_code.upper()).first_or_404()
+    today = date.today()
+    if not hmac.compare_digest(token, checkin_token(church, today)):
+        return render_template("checkin.html", church=church, expired=True), 410
+
+    if request.method == "POST":
+        number = normalize_member_number(request.form.get("member_number"), church.code)
+        member = Member.query.filter_by(church_id=church.id, member_number=number).first() if number else None
+        if not member or member.left_at:
+            flash(f"We couldn't find member number '{number}'. Please check it, or see an usher if you're new.", "danger")
+            return redirect(request.path)
+
+        if not Attendance.query.filter_by(member_id=member.id, service_date=today).first():
+            db.session.add(Attendance(member_id=member.id, church_id=church.id, service_date=today))
+            try:
+                db.session.commit()
+            except IntegrityError:  # double-tap on submit — they're already marked, which is fine
+                db.session.rollback()
+        # Thank-you screen, which then forwards to the login page. Sign out any
+        # admin session on this device first, otherwise /login would bounce
+        # straight on to the dashboard instead of showing the login screen.
+        logout_user()
+        return render_template(
+            "checkin.html", church=church, expired=False, today=today,
+            done=True, first_name=member.full_name.split()[0],
+        )
+
+    return render_template("checkin.html", church=church, expired=False, today=today)
 
 
 def _members_list_view(is_child, endpoint, template):
@@ -1164,10 +1270,65 @@ def admin_delete_member(member_id):
     name = member.full_name
     is_child = member.is_child
     Attendance.query.filter_by(member_id=member.id).delete(synchronize_session=False)
+    AbsenteeEmail.query.filter_by(member_id=member.id).delete(synchronize_session=False)
     db.session.delete(member)
     db.session.commit()
     flash(f"{name} was removed from the church list.", "success")
     return redirect(url_for("admin_children" if is_child else "admin_members"))
+
+
+DEFAULT_ABSENTEE_SUBJECT = "We missed you at {church}"
+DEFAULT_ABSENTEE_BODY = (
+    "Dear {first_name},\n\n"
+    "We noticed you haven't been with us at {church} recently, and we just wanted "
+    "you to know that you were missed. We hope all is well with you and your family.\n\n"
+    "If there's anything you'd like us to pray about with you, or any way we can help, "
+    "please reply to this email — we'd love to hear from you.\n\n"
+    "We look forward to seeing you soon.\n\n"
+    "God bless,\n{pastor}\n{church}"
+)
+EMAIL_PLACEHOLDERS = ["{name}", "{first_name}", "{member_number}", "{church}", "{pastor}", "{last_attended}"]
+
+
+def mail_configured():
+    return bool(MAIL_SERVER and MAIL_FROM)
+
+
+def fill_email_template(template, member, church, last_attended):
+    # Plain replace (not str.format) so a stray "{" typed by an admin can't break sending.
+    values = {
+        "{name}": member.full_name,
+        "{first_name}": member.full_name.split()[0],
+        "{member_number}": member.member_number,
+        "{church}": church.name,
+        "{pastor}": church.pastor_name or f"The {church.name} family",
+        "{last_attended}": last_attended.strftime("%d %B %Y") if last_attended else "a while ago",
+    }
+    for key, val in values.items():
+        template = template.replace(key, val)
+    return template
+
+
+def _absentees(church, start, end):
+    """[(member, last_attended_before_start), ...] for adults with no attendance in [start, end]."""
+    attended_ids = {
+        r[0] for r in db.session.query(Attendance.member_id).filter(
+            Attendance.church_id == church.id,
+            Attendance.service_date >= start,
+            Attendance.service_date <= end,
+        ).all()
+    }
+    absentees = Member.query.filter_by(church_id=church.id, left_at=None, is_child=False).filter(
+        ~Member.id.in_(attended_ids) if attended_ids else True
+    ).order_by(Member.full_name).all()
+
+    results = []
+    for m in absentees:
+        last = db.session.query(func.max(Attendance.service_date)).filter(
+            Attendance.member_id == m.id, Attendance.service_date < start
+        ).scalar()
+        results.append((m, last))
+    return results
 
 
 @app.route("/admin/reports/absentees")
@@ -1178,25 +1339,15 @@ def admin_absentee_report():
     start = parse_date(request.args.get("start"))
     end = parse_date(request.args.get("end"))
     results = None
+    emailed = {}
 
     if start and end:
-        attended_ids = {
-            r[0] for r in db.session.query(Attendance.member_id).filter(
-                Attendance.church_id == church.id,
-                Attendance.service_date >= start,
-                Attendance.service_date <= end,
+        results = _absentees(church, start, end)
+        emailed = {
+            e.member_id: e.sent_at for e in AbsenteeEmail.query.filter_by(
+                church_id=church.id, period_start=start, period_end=end,
             ).all()
         }
-        absentees = Member.query.filter_by(church_id=church.id, left_at=None, is_child=False).filter(
-            ~Member.id.in_(attended_ids) if attended_ids else True
-        ).order_by(Member.full_name).all()
-
-        results = []
-        for m in absentees:
-            last = db.session.query(func.max(Attendance.service_date)).filter(
-                Attendance.member_id == m.id, Attendance.service_date < start
-            ).scalar()
-            results.append((m, last))
 
         if request.args.get("export"):
             buf = io.StringIO()
@@ -1214,8 +1365,103 @@ def admin_absentee_report():
 
     return render_template(
         "admin/absentee_report.html",
-        start=start.isoformat(), end=end.isoformat(), results=results,
+        start=start.isoformat(), end=end.isoformat(), results=results, emailed=emailed,
+        mail_ready=mail_configured(), placeholders=EMAIL_PLACEHOLDERS,
+        email_subject=church.absentee_email_subject or DEFAULT_ABSENTEE_SUBJECT,
+        email_body=church.absentee_email_body or DEFAULT_ABSENTEE_BODY,
     )
+
+
+# Keep each request well under gunicorn's 30s worker timeout. Anything left
+# over is picked up by pressing Send again — already-emailed members are skipped.
+EMAIL_BATCH_SECONDS = 20
+
+
+@app.route("/admin/reports/absentees/email", methods=["POST"])
+@role_required("admin")
+def admin_email_absentees():
+    church = current_user.church
+    start = parse_date(request.form.get("start"))
+    end = parse_date(request.form.get("end"))
+    if not (start and end):
+        flash("Generate the absentee report first.", "danger")
+        return redirect(url_for("admin_absentee_report"))
+    back = redirect(url_for("admin_absentee_report", start=start.isoformat(), end=end.isoformat()))
+
+    subject = request.form.get("subject", "").strip()
+    body = request.form.get("body", "").strip()
+    if not subject or not body:
+        flash("The email needs both a subject and a message.", "danger")
+        return back
+    church.absentee_email_subject = subject
+    church.absentee_email_body = body
+    db.session.commit()
+
+    if not mail_configured():
+        flash("Email isn't set up on the server yet (MAIL_SERVER / MAIL_USERNAME / MAIL_PASSWORD). Your message was saved.", "warning")
+        return back
+
+    selected = {int(v) for v in request.form.getlist("member_ids") if v.isdigit()}
+    already = {
+        r[0] for r in db.session.query(AbsenteeEmail.member_id).filter_by(
+            church_id=church.id, period_start=start, period_end=end,
+        ).all()
+    }
+    # Recompute the absentee list server-side — never trust ticked ids alone.
+    targets = [
+        (m, last) for m, last in _absentees(church, start, end)
+        if m.id in selected and m.id not in already and m.email
+    ]
+    if not targets:
+        flash("No one to email — select absentees who have an email address and haven't been emailed for this period.", "info")
+        return back
+
+    sent, failed = 0, []
+    deadline = time.monotonic() + EMAIL_BATCH_SECONDS
+    try:
+        if MAIL_USE_SSL:
+            smtp = smtplib.SMTP_SSL(MAIL_SERVER, MAIL_PORT, timeout=15)
+        else:
+            smtp = smtplib.SMTP(MAIL_SERVER, MAIL_PORT, timeout=15)
+            smtp.starttls()
+        if MAIL_USERNAME:
+            smtp.login(MAIL_USERNAME, MAIL_PASSWORD)
+    except (smtplib.SMTPException, OSError) as exc:
+        app.logger.exception("SMTP connection failed")
+        flash(f"Couldn't connect to the mail server: {exc}", "danger")
+        return back
+
+    with smtp:
+        for member, last in targets:
+            if time.monotonic() > deadline:
+                break
+            msg = EmailMessage()
+            msg["Subject"] = fill_email_template(subject, member, church, last)
+            msg["From"] = f"{church.name} <{MAIL_FROM}>"
+            msg["To"] = member.email
+            if church.email:
+                msg["Reply-To"] = church.email
+            msg.set_content(fill_email_template(body, member, church, last))
+            try:
+                smtp.send_message(msg)
+            except (smtplib.SMTPException, OSError) as exc:
+                app.logger.warning("Absentee email to %s failed: %s", member.email, exc)
+                failed.append(member.full_name)
+                continue
+            db.session.add(AbsenteeEmail(
+                member_id=member.id, church_id=church.id, period_start=start, period_end=end,
+            ))
+            db.session.commit()  # record each send immediately so a crash can't cause a re-send
+            sent += 1
+
+    remaining = len(targets) - sent - len(failed)
+    if sent:
+        flash(f"Sent {sent} email(s).", "success")
+    if failed:
+        flash(f"Couldn't send to: {', '.join(failed)}. Check their email addresses.", "danger")
+    if remaining:
+        flash(f"{remaining} email(s) still to go — press Send again to continue (nobody gets it twice).", "warning")
+    return back
 
 
 @app.route("/admin/church-profile")
@@ -1314,6 +1560,9 @@ def reset_superadmin_command(username, password):
 _SCHEMA_PATCHES = [
     ("member", "left_at", "DATETIME"),
     ("member", "is_child", "BOOLEAN NOT NULL DEFAULT 0"),
+    ("church", "checkin_secret", "VARCHAR(64)"),
+    ("church", "absentee_email_subject", "VARCHAR(200)"),
+    ("church", "absentee_email_body", "TEXT"),
 ]
 
 
