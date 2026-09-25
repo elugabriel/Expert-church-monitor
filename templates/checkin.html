@@ -15,8 +15,8 @@
 <div class="container py-4" style="max-width:460px;">
   <div class="card p-4 mt-3">
     <div class="text-center mb-3">
-      {% if church.logo_filename %}
-        <img src="{{ url_for('uploaded_file', filename=church.logo_filename) }}" alt="" style="width:64px;height:64px;border-radius:14px;object-fit:cover;">
+      {% if church_logo_url(church) %}
+        <img src="{{ church_logo_url(church) }}" alt="" style="width:64px;height:64px;border-radius:14px;object-fit:cover;">
       {% else %}
         <img src="{{ url_for('static', filename='branding/company_logo.png') }}" alt="" style="width:64px;height:64px;border-radius:14px;object-fit:cover;">
       {% endif %}

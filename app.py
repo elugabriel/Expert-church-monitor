@@ -23,6 +23,7 @@ import io
 import re
 import csv
 import uuid
+import base64
 import hmac
 import time
 import hashlib
@@ -124,7 +125,11 @@ class Church(db.Model):
     email = db.Column(db.String(120))
     pastor_name = db.Column(db.String(120))
     description = db.Column(db.Text)
-    logo_filename = db.Column(db.String(255))
+    logo_filename = db.Column(db.String(255))  # legacy: file on disk (lost on Render redeploys)
+    # The logo itself, base64-encoded in the database so it survives redeploys
+    # on hosts with a wiped filesystem (e.g. Render's free plan).
+    logo_data = db.Column(db.Text)
+    logo_mimetype = db.Column(db.String(50))
     next_seq = db.Column(db.Integer, default=1, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     checkin_secret = db.Column(db.String(64))  # signs the daily QR check-in link
@@ -409,6 +414,48 @@ def uploaded_file(filename):
     return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
 
 
+LOGO_MIMETYPES = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "gif": "image/gif", "webp": "image/webp"}
+
+
+def save_church_logo(church, file_storage):
+    """Store an uploaded logo in the database. Returns True if a logo was saved."""
+    if not file_storage or file_storage.filename == "":
+        return False
+    if not allowed_file(file_storage.filename):
+        flash("Only image files (png, jpg, jpeg, gif, webp) are allowed.", "danger")
+        return False
+    ext = file_storage.filename.rsplit(".", 1)[1].lower()
+    church.logo_data = base64.b64encode(file_storage.read()).decode("ascii")
+    church.logo_mimetype = LOGO_MIMETYPES[ext]
+    church.logo_filename = None
+    return True
+
+
+@app.template_global()
+def church_logo_url(church):
+    """URL of a church's logo, or None. Falls back to an old on-disk upload if it still exists."""
+    if not church:
+        return None
+    if church.logo_data:
+        # The version hash changes whenever the logo does, so browsers can cache it safely.
+        version = hashlib.sha1(church.logo_data.encode()).hexdigest()[:10]
+        return url_for("church_logo", church_id=church.id, v=version)
+    if church.logo_filename and os.path.exists(os.path.join(app.config["UPLOAD_FOLDER"], church.logo_filename)):
+        return url_for("uploaded_file", filename=church.logo_filename)
+    return None
+
+
+@app.route("/church/<int:church_id>/logo")
+def church_logo(church_id):
+    # Public on purpose: the member check-in page shows the logo without a login.
+    church = Church.query.get_or_404(church_id)
+    if not church.logo_data:
+        abort(404)
+    resp = Response(base64.b64decode(church.logo_data), mimetype=church.logo_mimetype or "image/png")
+    resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    return resp
+
+
 # ---------------------------------------------------------------------------
 # Superadmin routes
 # ---------------------------------------------------------------------------
@@ -444,10 +491,7 @@ def superadmin_new_church():
                 address=request.form.get("address", "").strip(),
                 description=request.form.get("description", "").strip(),
             )
-            logo = request.files.get("logo")
-            fname = save_upload(logo)
-            if fname:
-                church.logo_filename = fname
+            save_church_logo(church, request.files.get("logo"))
             db.session.add(church)
             db.session.commit()
             flash(f"Church '{name}' created.", "success")
@@ -466,10 +510,7 @@ def superadmin_edit_church(church_id):
         church.email = request.form.get("email", "").strip()
         church.address = request.form.get("address", "").strip()
         church.description = request.form.get("description", "").strip()
-        logo = request.files.get("logo")
-        fname = save_upload(logo)
-        if fname:
-            church.logo_filename = fname
+        save_church_logo(church, request.files.get("logo"))
         db.session.commit()
         flash("Church details updated.", "success")
         return redirect(url_for("superadmin_church_detail", church_id=church.id))
@@ -1573,6 +1614,8 @@ _SCHEMA_PATCHES = [
     ("church", "checkin_secret", "VARCHAR(64)"),
     ("church", "absentee_email_subject", "VARCHAR(200)"),
     ("church", "absentee_email_body", "TEXT"),
+    ("church", "logo_data", "TEXT"),
+    ("church", "logo_mimetype", "VARCHAR(50)"),
 ]
 
 

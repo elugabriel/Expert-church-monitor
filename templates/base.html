@@ -21,8 +21,9 @@
         <rect x="97" y="16" width="6" height="26" fill="#fff" opacity=".06"/>
         <rect x="90" y="24" width="20" height="6" fill="#fff" opacity=".06"/>
       </svg>
-      {% if current_user.role == 'admin' and current_user.church and current_user.church.logo_filename %}
-        <img class="brand-logo" src="{{ url_for('uploaded_file', filename=current_user.church.logo_filename) }}" alt="">
+      {% set sidebar_logo = church_logo_url(current_user.church) if current_user.role == 'admin' else None %}
+      {% if sidebar_logo %}
+        <img class="brand-logo" src="{{ sidebar_logo }}" alt="">
       {% else %}
         <img class="brand-logo" src="{{ url_for('static', filename='branding/company_logo.png') }}" alt="">
       {% endif %}
