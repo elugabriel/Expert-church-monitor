@@ -68,6 +68,11 @@ Uses SQLAlchemy against whatever `DATABASE_URL` you set:
    - `SECRET_KEY` — a long random string.
    - `DATABASE_URL` — your SQLite Cloud or Postgres connection string.
    - `SUPERADMIN_USERNAME` / `SUPERADMIN_PASSWORD` — set these so you know the login instead of hunting through logs.
+   - `MAIL_SERVER` / `MAIL_USERNAME` / `MAIL_PASSWORD` — optional, for absentee follow-up emails.
+   - `EBULKSMS_USERNAME` / `EBULKSMS_API_KEY` — optional, for absentee follow-up SMS through
+     [eBulkSMS](https://ebulksms.com). The username is the email you log in to eBulkSMS with; generate the
+     API key in its dashboard. `EBULKSMS_SENDER` sets the sender name (max 11 letters/digits; defaults to
+     the church name). Set `EBULKSMS_DND=0` to skip MTN DND numbers, which cost 2 units each.
 6. If you want uploaded logos/photos to survive restarts, attach a persistent disk mounted at the app directory, or swap the upload code to a cloud storage bucket.
 
 ## Super admin login keeps resetting on Render — why, and the fix

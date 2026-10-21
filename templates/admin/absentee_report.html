@@ -32,14 +32,14 @@
   <div class="table-responsive">
   <table class="table align-middle">
     <thead><tr>
-      <th style="width:40px;"><input class="form-check-input" type="checkbox" id="select-all" title="Select all who can be emailed"></th>
+      <th style="width:40px;"><input class="form-check-input" type="checkbox" id="select-all" title="Select all who can be contacted"></th>
       <th>Number</th><th>Name</th><th>Phone</th><th>Email</th><th>Last Attended</th><th>Follow-up</th>
     </tr></thead>
     <tbody>
     {% for m, last in results %}
       <tr>
         <td>
-          {% if m.email and m.id not in emailed %}
+          {% if (m.email and m.id not in emailed) or (m.phone and m.id not in texted) %}
             <input class="form-check-input absentee-checkbox" type="checkbox" name="member_ids" value="{{ m.id }}" checked>
           {% endif %}
         </td>
@@ -49,13 +49,22 @@
         <td>{{ m.email or '-' }}</td>
         <td>{{ last.strftime('%d %b %Y') if last else 'Never' }}</td>
         <td>
+          <div class="d-flex flex-column gap-1 align-items-start">
           {% if m.id in emailed %}
             <span class="badge bg-success"><i class="bi bi-envelope-check"></i> Emailed {{ (emailed[m.id]|lagos_time).strftime('%d %b, %I:%M %p') }}</span>
           {% elif not m.email %}
-            <span class="text-muted small">No email</span>
+            <span class="text-muted small"><i class="bi bi-envelope"></i> No email</span>
           {% else %}
-            <span class="text-muted small">Not yet</span>
+            <span class="text-muted small"><i class="bi bi-envelope"></i> Not emailed</span>
           {% endif %}
+          {% if m.id in texted %}
+            <span class="badge bg-success"><i class="bi bi-chat-dots"></i> Texted {{ (texted[m.id]|lagos_time).strftime('%d %b, %I:%M %p') }}</span>
+          {% elif not m.phone %}
+            <span class="text-muted small"><i class="bi bi-chat"></i> No phone</span>
+          {% else %}
+            <span class="text-muted small"><i class="bi bi-chat"></i> Not texted</span>
+          {% endif %}
+          </div>
         </td>
       </tr>
     {% else %}
@@ -83,15 +92,42 @@
   {% endif %}
   <div class="mb-3">
     <label class="form-label">Subject</label>
-    <input type="text" class="form-control" name="subject" value="{{ email_subject }}" maxlength="200" required>
+    <input type="text" class="form-control" name="subject" value="{{ email_subject }}" maxlength="200">
   </div>
   <div class="mb-3">
     <label class="form-label">Message</label>
-    <textarea class="form-control" name="body" rows="12" required>{{ email_body }}</textarea>
+    <textarea class="form-control" name="body" rows="12">{{ email_body }}</textarea>
   </div>
   <button class="btn btn-primary" type="submit"
           {% if mail_ready %}onclick="return confirm('Send this email to all ticked absentees?');"{% endif %}>
     <i class="bi bi-send"></i> {{ 'Send to Selected' if mail_ready else 'Save Message' }}
+  </button>
+</div>
+
+<div class="card p-3 mt-4">
+  <h5><i class="bi bi-chat-heart"></i> Text the selected absentees (SMS)</h5>
+  <p class="text-muted small mb-3">
+    Sent through eBulkSMS from <strong>{{ sms_sender }}</strong> to everyone ticked who has a phone number.
+    Each member gets it at most once for this date range. The same placeholders work here.
+  </p>
+  {% if not sms_ready %}
+    <div class="alert alert-warning small">
+      SMS sending isn't set up on the server yet. Ask whoever deploys the app to set
+      <code>EBULKSMS_USERNAME</code> and <code>EBULKSMS_API_KEY</code>.
+      You can still write and save your message now.
+    </div>
+  {% endif %}
+  <div class="mb-3">
+    <label class="form-label d-flex justify-content-between">
+      <span>Message</span>
+      <span class="text-muted small" id="sms-count"></span>
+    </label>
+    <textarea class="form-control" name="sms_body" id="sms-body" rows="4" maxlength="{{ sms_max }}">{{ sms_body }}</textarea>
+    <div class="form-text">160 characters is one SMS page; longer messages cost more units. Placeholders like <code>{name}</code> change the final length.</div>
+  </div>
+  <button class="btn btn-primary" type="submit" formaction="{{ url_for('admin_sms_absentees') }}"
+          {% if sms_ready %}onclick="return confirm('Send this SMS to all ticked absentees?');"{% endif %}>
+    <i class="bi bi-chat-dots"></i> {{ 'Send SMS to Selected' if sms_ready else 'Save SMS Message' }}
   </button>
 </div>
 {% endif %}
@@ -107,6 +143,18 @@
     selectAll.addEventListener('change', function () {
       document.querySelectorAll('.absentee-checkbox').forEach(function (cb) { cb.checked = selectAll.checked; });
     });
+  }
+
+  var smsBody = document.getElementById('sms-body');
+  if (smsBody) {
+    var smsCount = document.getElementById('sms-count');
+    var updateCount = function () {
+      var n = smsBody.value.length;
+      var pages = n <= 160 ? 1 : Math.ceil(n / 153);
+      smsCount.textContent = n + ' characters · ' + pages + ' page' + (pages === 1 ? '' : 's');
+    };
+    smsBody.addEventListener('input', updateCount);
+    updateCount();
   }
 </script>
 {% endblock %}

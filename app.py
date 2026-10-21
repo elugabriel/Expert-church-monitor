@@ -28,8 +28,11 @@ import hmac
 import time
 import hashlib
 import secrets
+import json
 import smtplib
 import click
+import urllib.request
+import urllib.error
 from email.message import EmailMessage
 from functools import wraps
 from datetime import datetime, date, timedelta
@@ -102,6 +105,15 @@ MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD", "")
 MAIL_FROM = os.environ.get("MAIL_FROM", "") or MAIL_USERNAME
 MAIL_USE_SSL = os.environ.get("MAIL_USE_SSL", "0") == "1"  # port 465 style; otherwise STARTTLS
 
+# Outgoing SMS (absentee follow-ups) through eBulkSMS (https://ebulksms.com).
+# The username is the email address you log in to eBulkSMS with; generate the
+# API key in its dashboard. The sender name is at most 11 letters/digits.
+EBULKSMS_USERNAME = os.environ.get("EBULKSMS_USERNAME", "")
+EBULKSMS_API_KEY = os.environ.get("EBULKSMS_API_KEY", "")
+EBULKSMS_SENDER = os.environ.get("EBULKSMS_SENDER", "")
+EBULKSMS_DND = os.environ.get("EBULKSMS_DND", "1") == "1"  # also reach MTN DND numbers (2 units each)
+EBULKSMS_URL = os.environ.get("EBULKSMS_URL", "https://api.ebulksms.com/sendsms.json")
+
 db = SQLAlchemy(app)
 
 login_manager = LoginManager(app)
@@ -135,6 +147,7 @@ class Church(db.Model):
     checkin_secret = db.Column(db.String(64))  # signs the daily QR check-in link
     absentee_email_subject = db.Column(db.String(200))  # last-used template, remembered for next time
     absentee_email_body = db.Column(db.Text)
+    absentee_sms_body = db.Column(db.Text)
 
     def next_member_number(self):
         # If every member record for this church has been deleted, start the
@@ -222,6 +235,22 @@ class AbsenteeEmail(db.Model):
 
     __table_args__ = (
         db.UniqueConstraint("member_id", "period_start", "period_end", name="uq_absentee_email_period"),
+    )
+
+
+class AbsenteeSMS(db.Model):
+    """One row per follow-up SMS sent, so a member is only texted once per absence period."""
+    __tablename__ = "absentee_sms"
+
+    id = db.Column(db.Integer, primary_key=True)
+    member_id = db.Column(db.Integer, db.ForeignKey("member.id"), nullable=False)
+    church_id = db.Column(db.Integer, db.ForeignKey("church.id"), nullable=False)
+    period_start = db.Column(db.Date, nullable=False)
+    period_end = db.Column(db.Date, nullable=False)
+    sent_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint("member_id", "period_start", "period_end", name="uq_absentee_sms_period"),
     )
 
 
@@ -1338,11 +1367,65 @@ DEFAULT_ABSENTEE_BODY = (
     "We look forward to seeing you soon.\n\n"
     "God bless,\n{pastor}\n{church}"
 )
+DEFAULT_ABSENTEE_SMS = (
+    "Dear {first_name}, we missed you at {church} recently. We hope all is well "
+    "with you. We look forward to seeing you soon. God bless, {pastor}"
+)
+SMS_MAX_CHARS = 612  # eBulkSMS limit: 4 pages
 EMAIL_PLACEHOLDERS = ["{name}", "{first_name}", "{member_number}", "{church}", "{pastor}", "{last_attended}"]
 
 
 def mail_configured():
     return bool(MAIL_SERVER and MAIL_FROM)
+
+
+def sms_configured():
+    return bool(EBULKSMS_USERNAME and EBULKSMS_API_KEY)
+
+
+def sms_sender_name(church):
+    """eBulkSMS allows at most 11 letters/digits; fall back to the church name."""
+    name = EBULKSMS_SENDER or re.sub(r"[^A-Za-z0-9 ]", "", church.name)
+    return " ".join(name.split())[:11].strip() or "Church"
+
+
+def normalize_ng_phone(phone):
+    """Turn '0803 123 4567' / '+2348031234567' / '2348031234567' into '2348031234567', else None."""
+    digits = re.sub(r"\D", "", phone or "")
+    if digits.startswith("0") and len(digits) == 11:
+        digits = "234" + digits[1:]
+    elif len(digits) == 10 and digits[0] in "789":
+        digits = "234" + digits
+    return digits if digits.startswith("234") and len(digits) == 13 else None
+
+
+# Statuses that mean the whole account is unusable, so there's no point
+# trying the next member — stop the batch and tell the admin why.
+SMS_GATEWAY_ERRORS = {
+    "AUTH_FAILURE": "eBulkSMS rejected the username / API key.",
+    "MISSING_USERNAME": "The eBulkSMS username isn't set.",
+    "MISSING_APIKEY": "The eBulkSMS API key isn't set.",
+    "INSUFFICIENT_CREDIT": "The eBulkSMS account is out of credit — top up and press Send SMS again.",
+    "INVALID_SENDER": "eBulkSMS rejected the sender name (max 11 letters/digits, no symbols).",
+    "MISSING_SENDER": "eBulkSMS rejected the sender name (max 11 letters/digits, no symbols).",
+}
+
+
+def send_ebulksms(sender, phone, message):
+    """Send one SMS. Returns the eBulkSMS status string ('SUCCESS' on success)."""
+    payload = {"SMS": {
+        "auth": {"username": EBULKSMS_USERNAME, "apikey": EBULKSMS_API_KEY},
+        "message": {"sender": sender, "messagetext": message, "flash": "0"},
+        "recipients": {"gsm": [{"msidn": phone, "msgid": uuid.uuid4().hex[:30]}]},
+        "dndsender": 1 if EBULKSMS_DND else 0,
+    }}
+    req = urllib.request.Request(
+        EBULKSMS_URL, data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"}, method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        data = json.loads(resp.read().decode("utf-8") or "{}")
+    return (data.get("response") or {}).get("status", "UNKNOWN_ERROR")
 
 
 def fill_email_template(template, member, church, last_attended):
@@ -1391,11 +1474,17 @@ def admin_absentee_report():
     end = parse_date(request.args.get("end"))
     results = None
     emailed = {}
+    texted = {}
 
     if start and end:
         results = _absentees(church, start, end)
         emailed = {
             e.member_id: e.sent_at for e in AbsenteeEmail.query.filter_by(
+                church_id=church.id, period_start=start, period_end=end,
+            ).all()
+        }
+        texted = {
+            t.member_id: t.sent_at for t in AbsenteeSMS.query.filter_by(
                 church_id=church.id, period_start=start, period_end=end,
             ).all()
         }
@@ -1416,10 +1505,12 @@ def admin_absentee_report():
 
     return render_template(
         "admin/absentee_report.html",
-        start=start.isoformat(), end=end.isoformat(), results=results, emailed=emailed,
+        start=start.isoformat(), end=end.isoformat(), results=results, emailed=emailed, texted=texted,
         mail_ready=mail_configured(), placeholders=EMAIL_PLACEHOLDERS,
         email_subject=church.absentee_email_subject or DEFAULT_ABSENTEE_SUBJECT,
         email_body=church.absentee_email_body or DEFAULT_ABSENTEE_BODY,
+        sms_ready=sms_configured(), sms_body=church.absentee_sms_body or DEFAULT_ABSENTEE_SMS,
+        sms_max=SMS_MAX_CHARS, sms_sender=sms_sender_name(church),
     )
 
 
@@ -1512,6 +1603,83 @@ def admin_email_absentees():
         flash(f"Couldn't send to: {', '.join(failed)}. Check their email addresses.", "danger")
     if remaining:
         flash(f"{remaining} email(s) still to go — press Send again to continue (nobody gets it twice).", "warning")
+    return back
+
+
+@app.route("/admin/reports/absentees/sms", methods=["POST"])
+@role_required("admin")
+def admin_sms_absentees():
+    church = current_user.church
+    start = parse_date(request.form.get("start"))
+    end = parse_date(request.form.get("end"))
+    if not (start and end):
+        flash("Generate the absentee report first.", "danger")
+        return redirect(url_for("admin_absentee_report"))
+    back = redirect(url_for("admin_absentee_report", start=start.isoformat(), end=end.isoformat()))
+
+    body = request.form.get("sms_body", "").strip()
+    if not body:
+        flash("The SMS needs a message.", "danger")
+        return back
+    church.absentee_sms_body = body
+    db.session.commit()
+
+    if not sms_configured():
+        flash("SMS isn't set up on the server yet (EBULKSMS_USERNAME / EBULKSMS_API_KEY). Your message was saved.", "warning")
+        return back
+
+    selected = {int(v) for v in request.form.getlist("member_ids") if v.isdigit()}
+    already = {
+        r[0] for r in db.session.query(AbsenteeSMS.member_id).filter_by(
+            church_id=church.id, period_start=start, period_end=end,
+        ).all()
+    }
+    # Recompute the absentee list server-side — never trust ticked ids alone.
+    targets = [
+        (m, last) for m, last in _absentees(church, start, end)
+        if m.id in selected and m.id not in already and m.phone
+    ]
+    if not targets:
+        flash("No one to text — select absentees who have a phone number and haven't been texted for this period.", "info")
+        return back
+
+    sender = sms_sender_name(church)
+    sent, failed = 0, []
+    deadline = time.monotonic() + EMAIL_BATCH_SECONDS
+    for member, last in targets:
+        if time.monotonic() > deadline:
+            break
+        phone = normalize_ng_phone(member.phone)
+        if not phone:
+            failed.append(f"{member.full_name} (invalid number)")
+            continue
+        message = fill_email_template(body, member, church, last)[:SMS_MAX_CHARS]
+        try:
+            status = send_ebulksms(sender, phone, message)
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            app.logger.exception("eBulkSMS request failed")
+            flash(f"Couldn't reach eBulkSMS: {exc}", "danger")
+            break
+        if status in SMS_GATEWAY_ERRORS:
+            flash(SMS_GATEWAY_ERRORS[status], "danger")
+            break
+        if status != "SUCCESS":
+            app.logger.warning("Absentee SMS to %s failed: %s", phone, status)
+            failed.append(f"{member.full_name} ({status.replace('_', ' ').lower()})")
+            continue
+        db.session.add(AbsenteeSMS(
+            member_id=member.id, church_id=church.id, period_start=start, period_end=end,
+        ))
+        db.session.commit()  # record each send immediately so a crash can't cause a re-send
+        sent += 1
+
+    remaining = len(targets) - sent - len(failed)
+    if sent:
+        flash(f"Sent {sent} SMS.", "success")
+    if failed:
+        flash(f"Couldn't text: {', '.join(failed)}.", "danger")
+    if remaining:
+        flash(f"{remaining} SMS still to go — press Send SMS again to continue (nobody gets it twice).", "warning")
     return back
 
 
@@ -1614,6 +1782,7 @@ _SCHEMA_PATCHES = [
     ("church", "checkin_secret", "VARCHAR(64)"),
     ("church", "absentee_email_subject", "VARCHAR(200)"),
     ("church", "absentee_email_body", "TEXT"),
+    ("church", "absentee_sms_body", "TEXT"),
     ("church", "logo_data", "TEXT"),
     ("church", "logo_mimetype", "VARCHAR(50)"),
 ]
