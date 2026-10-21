@@ -42,7 +42,7 @@
     </div>
   </div>
   <div class="col-6 col-lg-3">
-    <div class="stat-tile tone-red">
+    <div class="stat-tile tone-gray">
       <div class="stat-icon"><i class="bi bi-person-x-fill"></i></div>
       <div class="stat-label">Absent Today</div>
       <div class="stat-value">{{ absent_today }}</div>
@@ -147,8 +147,8 @@
       <div class="d-flex justify-content-between mt-3">
         <div class="ring-stat">
           <svg width="56" height="56" viewBox="0 0 56 56">
-            <circle cx="28" cy="28" r="24" fill="none" stroke="#eef0f6" stroke-width="6"/>
-            <circle cx="28" cy="28" r="24" fill="none" stroke="#0f9d76" stroke-width="6"
+            <circle cx="28" cy="28" r="24" fill="none" stroke="#f3f4f6" stroke-width="6"/>
+            <circle cx="28" cy="28" r="24" fill="none" stroke="#fb2c36" stroke-width="6"
                     stroke-dasharray="{{ (150.8 * present_pct / 100)|round(1) }} 150.8" stroke-linecap="round"/>
           </svg>
           <div>
@@ -160,8 +160,8 @@
       <div class="d-flex justify-content-between mt-3">
         <div class="ring-stat">
           <svg width="56" height="56" viewBox="0 0 56 56">
-            <circle cx="28" cy="28" r="24" fill="none" stroke="#eef0f6" stroke-width="6"/>
-            <circle cx="28" cy="28" r="24" fill="none" stroke="#e8474f" stroke-width="6"
+            <circle cx="28" cy="28" r="24" fill="none" stroke="#f3f4f6" stroke-width="6"/>
+            <circle cx="28" cy="28" r="24" fill="none" stroke="#4a5565" stroke-width="6"
                     stroke-dasharray="{{ (150.8 * absent_pct / 100)|round(1) }} 150.8" stroke-linecap="round"/>
           </svg>
           <div>
@@ -249,15 +249,15 @@
         {
           label: 'Present',
           data: attendanceSeries.weekly.present,
-          borderColor: '#2f5cf6',
-          backgroundColor: 'rgba(47,92,246,.12)',
+          borderColor: '#fb2c36',
+          backgroundColor: 'rgba(251,44,54,.12)',
           tension: .35, fill: true, pointRadius: 3,
         },
         {
           label: 'Absent',
           data: attendanceSeries.weekly.absent,
-          borderColor: '#e8474f',
-          backgroundColor: 'rgba(232,71,79,.10)',
+          borderColor: '#4a5565',
+          backgroundColor: 'rgba(74,85,101,.08)',
           tension: .35, fill: true, pointRadius: 3,
         },
       ],

@@ -324,7 +324,7 @@ SIDEBAR_VERSES = [
     ("Behold, how good and how pleasant it is for brethren to dwell together in unity!", "Psalm 133:1"),
 ]
 
-AVATAR_PALETTE = ["#2f5cf6", "#0f9d76", "#e8474f", "#f2a93b", "#7c5cf6", "#0891b2", "#c2410c", "#65a30d"]
+AVATAR_PALETTE = ["#fb2c36", "#0f9d76", "#171717", "#f2a93b", "#7c5cf6", "#0891b2", "#c2410c", "#65a30d"]
 
 
 @app.template_filter("initials")
