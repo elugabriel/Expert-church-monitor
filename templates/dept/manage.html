@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Manage {{ dept.name }}{% endblock %}
+{% block content %}
+{% include "dept/_nav.html" %}
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card p-3 h-100">
+      <h5>Details</h5>
+      <form method="post">
+        <label class="form-label">Name</label>
+        <input type="text" class="form-control mb-2" name="name" maxlength="120" value="{{ dept.name }}" required>
+        <label class="form-label">Description</label>
+        <input type="text" class="form-control mb-3" name="description" value="{{ dept.description or '' }}">
+        <button class="btn btn-primary" type="submit">Save</button>
+      </form>
+      <hr>
+      <form method="post" action="{{ url_for('dept_delete', dept_id=dept.id) }}"
+            onsubmit="return confirm('Delete {{ dept.name }} with its roster, meetings, leave requests, reports and unit-head logins? This cannot be undone.');">
+        <button class="btn btn-outline-danger btn-sm">Delete this department</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card p-3 h-100">
+      <h5>Unit head logins</h5>
+      <p class="text-muted small">A unit head signs in with their own login and sees only this unit. They get a temporary password that must be changed at first login.</p>
+      {% for h in heads %}
+      <div class="d-flex justify-content-between align-items-center border-bottom py-2 flex-wrap gap-2">
+        <div>{{ h.username }}{% if h.full_name %} <span class="text-muted">({{ h.full_name }})</span>{% endif %}{% if h.must_change_password %} <span class="badge bg-warning text-dark">must change password</span>{% endif %}</div>
+        <div class="d-flex gap-1">
+          <form method="post" action="{{ url_for('dept_reset_head', dept_id=dept.id, user_id=h.id) }}" onsubmit="return confirm('Reset the password for {{ h.username }}?');"><button class="btn btn-sm btn-outline-secondary">Reset password</button></form>
+          <form method="post" action="{{ url_for('dept_delete_head', dept_id=dept.id, user_id=h.id) }}" onsubmit="return confirm('Remove {{ h.username }}?');"><button class="btn btn-sm btn-outline-danger">Remove</button></form>
+        </div>
+      </div>
+      {% else %}<p class="text-muted">No unit head yet.</p>{% endfor %}
+      <form method="post" action="{{ url_for('dept_new_head', dept_id=dept.id) }}" class="row g-2 mt-2">
+        <div class="col-md-5"><input type="text" class="form-control form-control-sm" name="full_name" placeholder="Full name"></div>
+        <div class="col-md-4"><input type="text" class="form-control form-control-sm" name="username" placeholder="Username" required></div>
+        <div class="col-md-3"><button class="btn btn-sm btn-primary w-100">Add head</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card p-3">
+      <h5>Leave request link</h5>
+      <p class="text-muted small mb-2">Workers of this unit use this link, or its QR code, to ask for leave.</p>
+      <div class="row align-items-center g-3">
+        <div class="col-md-3"><div id="qr" style="max-width:180px;"></div></div>
+        <div class="col-md-9"><input type="text" class="form-control" value="{{ leave_url }}" readonly></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script>
+  (function () {
+    var qr = qrcode(0, 'M'); qr.addData({{ leave_url|tojson }}); qr.make();
+    document.getElementById('qr').innerHTML = qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+  })();
+</script>
+<style>#qr svg { display:block; width:100%; height:auto; }</style>
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}{{ dept.name }} roster{% endblock %}
+{% block content %}
+{% include "dept/_nav.html" %}
+
+{% if current_user.role == 'admin' %}
+<div class="card p-3 mb-4">
+  <form method="post" action="{{ url_for('dept_roster_add', dept_id=dept.id) }}" class="row g-2 align-items-end">
+    <div class="col-md-9">
+      <label class="form-label">Add workers by member number</label>
+      <input type="text" class="form-control" name="member_numbers" placeholder="e.g. RC-0001 RC-0002 RC-0003" required>
+      <div class="form-text">Separate several numbers with spaces or commas. Only active adult members can be added.</div>
+    </div>
+    <div class="col-md-3"><button class="btn btn-primary w-100" type="submit"><i class="bi bi-person-plus"></i> Add to unit</button></div>
+  </form>
+</div>
+{% endif %}
+
+<div class="card p-3">
+  <div class="table-responsive">
+  <table class="table align-middle">
+    <thead><tr><th></th><th>Number</th><th>Name</th><th>Phone</th><th>Emergency contact</th><th></th></tr></thead>
+    <tbody>
+    {% for m in members %}
+      <tr>
+        <td>
+          {% if m.photo_filename %}<img src="{{ url_for('uploaded_file', filename=m.photo_filename) }}" class="member-photo">
+          {% else %}<div class="member-photo d-flex align-items-center justify-content-center"><i class="bi bi-person"></i></div>{% endif %}
+        </td>
+        <td><span class="badge bg-dark">{{ m.member_number }}</span></td>
+        <td>{{ m.full_name }}</td>
+        <td>{{ m.phone or '-' }}</td>
+        <td>{% if m.emergency_contact_name or m.emergency_contact_phone %}{{ m.emergency_contact_name or '' }}<div class="small text-muted">{{ m.emergency_contact_phone or '' }}</div>{% else %}<span class="text-muted">Not recorded</span>{% endif %}</td>
+        <td class="text-end">
+          {% if current_user.role == 'admin' %}
+          <form method="post" action="{{ url_for('dept_roster_remove', dept_id=dept.id, member_id=m.id) }}" class="d-inline"
+                onsubmit="return confirm('Remove {{ m.full_name }} from {{ dept.name }}?');">
+            <button class="btn btn-sm btn-outline-danger">Remove</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="text-center text-muted py-4">No workers in this unit yet.{% if current_user.role != 'admin' %} Ask the church admin to add them.{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

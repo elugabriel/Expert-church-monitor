@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ dept.name }} reports{% endblock %}
+{% block content %}
+{% include "dept/_nav.html" %}
+
+<div class="card p-3 mb-4">
+  <h5 class="mb-1">Send to the pastoral office</h5>
+  <p class="text-muted small">Brief reports, meeting minutes or a financial account. The church admin sees them in the unit's Reports list.</p>
+  <form method="post">
+    <div class="row g-2 mb-2">
+      <div class="col-md-8"><input type="text" class="form-control" name="title" maxlength="200" placeholder="Title, e.g. October financial account" required></div>
+      <div class="col-md-4">
+        <select class="form-select" name="kind">{% for key, label in kinds.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select>
+      </div>
+    </div>
+    <textarea class="form-control mb-2" name="body" rows="7" placeholder="Type the report or account here." required></textarea>
+    <button class="btn btn-primary" type="submit"><i class="bi bi-send"></i> Send</button>
+  </form>
+</div>
+
+<div class="card p-3">
+  <h5>Sent so far</h5>
+  {% for r in reports %}
+  <div class="border-bottom py-3">
+    <div class="d-flex justify-content-between flex-wrap gap-2">
+      <div><strong>{{ r.title }}</strong> <span class="badge bg-secondary">{{ kinds.get(r.kind, r.kind) }}</span></div>
+      <div class="text-muted small">{{ (r.submitted_at|lagos_time).strftime('%d %b %Y, %I:%M %p') }}
+        {% if r.reviewed_at %}<span class="badge bg-success">Reviewed</span>{% else %}<span class="badge bg-warning text-dark">Not yet reviewed</span>{% endif %}</div>
+    </div>
+    <div class="mt-2" style="white-space:pre-wrap;">{{ r.body }}</div>
+    {% if current_user.role == 'admin' %}
+    <form method="post" action="{{ url_for('dept_report_review', dept_id=dept.id, report_id=r.id) }}" class="mt-2">
+      <button class="btn btn-sm btn-outline-secondary">{{ 'Mark as not reviewed' if r.reviewed_at else 'Mark as reviewed' }}</button>
+    </form>
+    {% endif %}
+  </div>
+  {% else %}<p class="text-muted mb-0">Nothing sent yet.</p>{% endfor %}
+</div>
+{% endblock %}

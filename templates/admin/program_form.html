@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit Program' if program else 'New Program' }}{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-7">
+    <div class="card p-4">
+      <h4 class="mb-3">{{ 'Edit Program' if program else 'New Special Program' }}</h4>
+      <form method="post">
+        <div class="mb-3">
+          <label class="form-label">Program name *</label>
+          <input type="text" class="form-control" name="name" value="{{ program.name if program else '' }}" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Date of the program</label>
+          <input type="date" class="form-control" name="program_date" value="{{ program.program_date.isoformat() if program and program.program_date else '' }}">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Description</label>
+          <textarea class="form-control" name="description" rows="3">{{ program.description if program and program.description else '' }}</textarea>
+        </div>
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Registration deadline <small class="text-muted">(optional)</small></label>
+            <input type="date" class="form-control" name="deadline" value="{{ program.deadline.isoformat() if program and program.deadline else '' }}">
+            <div class="form-text">People can register up to and including this day.</div>
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Maximum registrations <small class="text-muted">(optional)</small></label>
+            <input type="number" class="form-control" name="cap" min="1" value="{{ program.cap if program and program.cap else '' }}">
+            <div class="form-text">When this many people register, the form shows "Program full".</div>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Extra question <small class="text-muted">(optional)</small></label>
+          <input type="text" class="form-control" name="extra_question" maxlength="200" value="{{ program.extra_question if program and program.extra_question else '' }}" placeholder="e.g. Which group are you joining?">
+        </div>
+        <button class="btn btn-primary" type="submit">{{ 'Save' if program else 'Create Program' }}</button>
+        <a href="{{ url_for('admin_program_detail', program_id=program.id) if program else url_for('admin_programs') }}" class="btn btn-light">Cancel</a>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

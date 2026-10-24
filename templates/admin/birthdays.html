@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Birthdays{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <div>
+    <h3 class="mb-0"><i class="bi bi-gift"></i> Birthdays</h3>
+    <span class="text-muted">Choose who to greet and press Send. Nothing is sent automatically.</span>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('admin_birthdays', when='today') }}" class="btn btn-sm {{ 'btn-primary' if when == 'today' else 'btn-outline-secondary' }}">Today</a>
+    <a href="{{ url_for('admin_birthdays', when='week') }}" class="btn btn-sm {{ 'btn-primary' if when == 'week' else 'btn-outline-secondary' }}">Next 7 days</a>
+    <a href="{{ url_for('admin_birthdays', when='month') }}" class="btn btn-sm {{ 'btn-primary' if when == 'month' else 'btn-outline-secondary' }}">This month</a>
+  </div>
+</div>
+
+<div class="card p-3">
+  <div class="form-check mb-2">
+    <input class="form-check-input" type="checkbox" id="select-all">
+    <label class="form-check-label" for="select-all">Tick everyone shown</label>
+  </div>
+  <div class="table-responsive">
+  <table class="table align-middle">
+    <thead><tr><th style="width:40px;"></th><th>Birthday</th><th>Number</th><th>Name</th><th>Phone</th><th>Email</th><th>Greeted this year</th></tr></thead>
+    <tbody>
+    {% for m in members %}
+      <tr>
+        <td><input class="form-check-input member-box" type="checkbox" name="member_ids" value="{{ m.id }}" form="msg-form"></td>
+        <td>{{ m.date_of_birth.day }} {{ month_names[m.date_of_birth.month - 1][:3] }}</td>
+        <td><span class="badge bg-dark">{{ m.member_number }}</span></td>
+        <td>{{ m.full_name }}</td>
+        <td>{{ m.phone or '-' }}</td>
+        <td>{{ m.email or '-' }}</td>
+        <td>
+          {% if (m.id, 'sms') in sent %}<span class="badge bg-success">SMS sent</span>{% endif %}
+          {% if (m.id, 'email') in sent %}<span class="badge bg-success">Email sent</span>{% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="text-center text-muted py-4">No birthdays in this period.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+{% set panel_action = url_for('admin_send_birthdays') %}
+{% include "admin/_message_panel.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.getElementById('select-all').addEventListener('change', function () {
+    var on = this.checked;
+    document.querySelectorAll('.member-box').forEach(function (cb) { cb.checked = on; });
+  });
+</script>
+{% endblock %}

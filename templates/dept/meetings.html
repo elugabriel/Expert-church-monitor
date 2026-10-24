@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}{{ dept.name }} meetings{% endblock %}
+{% block content %}
+{% include "dept/_nav.html" %}
+
+<div class="card p-3 mb-4">
+  <form method="post" class="row g-2 align-items-end">
+    <div class="col-md-3"><label class="form-label">Date</label><input type="date" class="form-control" name="meeting_date" value="{{ today.isoformat() }}" required></div>
+    <div class="col-md-6"><label class="form-label">What kind of meeting</label><input type="text" class="form-control" name="title" maxlength="150" placeholder="Unit meeting, rehearsal, worker prayers" value="Unit meeting"></div>
+    <div class="col-md-3"><button class="btn btn-primary w-100" type="submit"><i class="bi bi-plus-lg"></i> Start a meeting</button></div>
+  </form>
+</div>
+
+<div class="card p-3">
+  <div class="table-responsive">
+  <table class="table align-middle">
+    <thead><tr><th>Date</th><th>Meeting</th><th>Attendance marked</th><th>Minutes</th><th></th></tr></thead>
+    <tbody>
+    {% for m in meetings %}
+      <tr>
+        <td class="text-nowrap">{{ m.meeting_date.strftime('%a %d %b %Y') }}</td>
+        <td>{{ m.title }}</td>
+        <td>{{ marked[m.id] }} of {{ total }}</td>
+        <td>{% if m.minutes %}<span class="badge bg-success">Written</span>{% else %}<span class="text-muted">-</span>{% endif %}</td>
+        <td class="text-end text-nowrap">
+          <a href="{{ url_for('dept_meeting', dept_id=dept.id, meeting_id=m.id) }}" class="btn btn-sm btn-outline-primary">Open</a>
+          <form method="post" action="{{ url_for('dept_meeting_delete', dept_id=dept.id, meeting_id=m.id) }}" class="d-inline"
+                onsubmit="return confirm('Delete this meeting and its attendance?');">
+            <button class="btn btn-sm btn-outline-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5" class="text-center text-muted py-4">No meetings yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

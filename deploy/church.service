@@ -1,0 +1,19 @@
+[Unit]
+Description=Expert Church Monitoring System (gunicorn)
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+User=church
+Group=church
+WorkingDirectory=/srv/church
+EnvironmentFile=/srv/church/.env
+RuntimeDirectory=church
+# --preload loads the app once before forking, so the three workers do not all try to
+# create tables and the first superadmin at the same moment on the first start.
+ExecStart=/srv/church/venv/bin/gunicorn app:app --bind unix:/run/church/church.sock --workers 3 --timeout 60 --preload
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

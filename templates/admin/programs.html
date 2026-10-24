@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Special Programs{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <div>
+    <h3 class="mb-0"><i class="bi bi-calendar-event"></i> Special Programs</h3>
+    <span class="text-muted">One-off programs with their own QR code. People register themselves; you can view and export the list anytime.</span>
+  </div>
+  {% if current_user.role == 'admin' %}
+  <a href="{{ url_for('admin_new_program') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> New Program</a>
+  {% endif %}
+</div>
+<div class="card p-3">
+  <div class="table-responsive">
+  <table class="table align-middle">
+    <thead><tr><th>Program</th><th>Date</th><th>Registered</th><th>Registration</th><th></th></tr></thead>
+    <tbody>
+    {% for p in programs %}
+      <tr>
+        <td>{{ p.name }}</td>
+        <td>{{ p.program_date.strftime('%d %b %Y') if p.program_date else '-' }}</td>
+        <td>{{ counts[p.id] }}{% if p.cap %} / {{ p.cap }}{% endif %}</td>
+        <td>
+          {% if states[p.id] == 'open' %}<span class="badge bg-success">Open</span>
+          {% elif states[p.id] == 'full' %}<span class="badge bg-warning text-dark">Full</span>
+          {% else %}<span class="badge bg-secondary">Closed</span>{% endif %}
+        </td>
+        <td class="text-end"><a href="{{ url_for('admin_program_detail', program_id=p.id) }}" class="btn btn-sm btn-outline-primary">Open</a></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5" class="text-center text-muted py-4">No programs yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

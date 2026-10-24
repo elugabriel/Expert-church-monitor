@@ -29,7 +29,7 @@
         <td>{{ m.phone or '-' }}</td>
         <td>{{ m.left_at.strftime('%d %b %Y') if m.left_at else '-' }}</td>
         <td class="text-end">
-          <a href="{{ url_for('admin_edit_child', member_id=m.id) if m.is_child else url_for('admin_edit_member', member_id=m.id) }}" class="btn btn-sm btn-outline-primary">View</a>
+          {% if not m.is_child or has_feature('children') %}<a href="{{ url_for('admin_edit_child', member_id=m.id) if m.is_child else url_for('admin_edit_member', member_id=m.id) }}" class="btn btn-sm btn-outline-primary">View</a>{% endif %}
           <form method="post" action="{{ url_for('admin_restore_member', member_id=m.id) }}" class="d-inline"
                 onsubmit="return confirm('Restore {{ m.full_name }} ({{ m.member_number }}) to the active member list?');">
             <button class="btn btn-sm btn-outline-success">Restore</button>

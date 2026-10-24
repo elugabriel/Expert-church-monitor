@@ -6,5 +6,8 @@ gunicorn==22.0.0
 python-dotenv==1.0.1
 openpyxl==3.1.5
 
+# Needed when DATABASE_URL points at Postgres (Hostinger VPS or Render).
+psycopg2-binary==2.9.9
+
 # Only needed if you point DATABASE_URL at SQLite Cloud (see README).
 sqlalchemy-sqlitecloud==0.1.1

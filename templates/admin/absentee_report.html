@@ -15,6 +15,7 @@
     <div class="col-md-4">
       <button class="btn btn-primary w-100" type="submit">Generate Report</button>
     </div>
+    {% include "admin/_attendance_filter.html" %}
   </form>
 </div>
 
@@ -25,9 +26,11 @@
 <div class="card p-3 mb-4">
   <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <h5 class="mb-0">Absent from {{ start }} to {{ end }} &middot; {{ results|length }} member(s)</h5>
+    {% if current_user.role == 'admin' %}
     <a class="btn btn-outline-success btn-sm" href="{{ url_for('admin_absentee_report', start=start, end=end, export=1) }}">
       <i class="bi bi-download"></i> Export CSV
     </a>
+    {% endif %}
   </div>
   <div class="table-responsive">
   <table class="table align-middle">
@@ -75,7 +78,8 @@
   </div>
 </div>
 
-{% if results %}
+{% if results and current_user.role == 'admin' %}
+{% if has_feature('absentee_email') %}
 <div class="card p-3">
   <h5><i class="bi bi-envelope-heart"></i> Email the selected absentees</h5>
   <p class="text-muted small mb-3">
@@ -103,7 +107,9 @@
     <i class="bi bi-send"></i> {{ 'Send to Selected' if mail_ready else 'Save Message' }}
   </button>
 </div>
+{% endif %}
 
+{% if has_feature('absentee_sms') %}
 <div class="card p-3 mt-4">
   <h5><i class="bi bi-chat-heart"></i> Text the selected absentees (SMS)</h5>
   <p class="text-muted small mb-3">
@@ -130,6 +136,7 @@
     <i class="bi bi-chat-dots"></i> {{ 'Send SMS to Selected' if sms_ready else 'Save SMS Message' }}
   </button>
 </div>
+{% endif %}
 {% endif %}
 </form>
 {% endif %}

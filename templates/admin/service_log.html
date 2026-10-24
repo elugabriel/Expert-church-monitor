@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Service Analytics{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <div>
+    <h3 class="mb-0"><i class="bi bi-journal-text"></i> Service Analytics</h3>
+    <span class="text-muted">Your digital bulletin and service archive: sermon, preacher and who handled each part of every service.</span>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{{ url_for('admin_new_service_log') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> New Service Record</a>
+    <a href="{{ url_for('admin_service_report', start=start, end=end, q=q) }}" class="btn btn-outline-success"><i class="bi bi-file-earmark-text"></i> One-click Report</a>
+    {% if current_user.role == 'admin' %}
+    <a href="{{ url_for('admin_service_segments') }}" class="btn btn-outline-secondary"><i class="bi bi-sliders"></i> Service Segments</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card p-3 mb-4">
+  <form method="get" class="row g-3 align-items-end">
+    <div class="col-md-3"><label class="form-label">From</label><input type="date" class="form-control" name="start" value="{{ start }}"></div>
+    <div class="col-md-3"><label class="form-label">To</label><input type="date" class="form-control" name="end" value="{{ end }}"></div>
+    <div class="col-md-4"><label class="form-label">Search</label><input type="text" class="form-control" name="q" value="{{ q }}" placeholder="Topic, passage, preacher or minister"></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Find</button></div>
+  </form>
+</div>
+
+<div class="card p-3">
+  <div class="table-responsive">
+  <table class="table align-middle">
+    <thead><tr><th>Date</th>{% if multi %}<th>Service</th>{% endif %}<th>Sermon</th><th>Preacher</th><th>Ministers</th><th>Present</th><th></th></tr></thead>
+    <tbody>
+    {% for log in logs %}
+      <tr>
+        <td class="text-nowrap">{{ log.service_date.strftime('%d %b %Y') }}<div class="small text-muted">{{ log.service_date.strftime('%A') }}</div></td>
+        {% if multi %}<td>{{ log.service.name }}</td>{% endif %}
+        <td>
+          <strong>{{ log.sermon_topic or '-' }}</strong>
+          {% if log.bible_passages %}<div class="small text-muted">{{ log.bible_passages }}</div>{% endif %}
+        </td>
+        <td>{{ log.preacher or '-' }}</td>
+        <td class="small">
+          {% for m in log.ministers|sort(attribute='segment_id') %}<div><span class="text-muted">{{ m.segment.name }}:</span> {{ m.minister }}</div>{% else %}-{% endfor %}
+        </td>
+        <td>{{ counts.get((log.service_date, log.service_id), 0) }}</td>
+        <td class="text-end text-nowrap">
+          <a href="{{ url_for('admin_edit_service_log', log_id=log.id) }}" class="btn btn-sm btn-outline-primary">Edit</a>
+          {% if current_user.role == 'admin' %}
+          <form method="post" action="{{ url_for('admin_delete_service_log', log_id=log.id) }}" class="d-inline"
+                onsubmit="return confirm('Delete this service record?');">
+            <button class="btn btn-sm btn-outline-danger">Delete</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="text-center text-muted py-4">No service records in this range.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

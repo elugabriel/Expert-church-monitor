@@ -31,6 +31,20 @@
   </div>
 </div>
 
+{% if multi %}
+<div class="card p-3 mt-3 no-print">
+  <h6 class="mb-1"><i class="bi bi-calendar-week"></i> Which service is this for?</h6>
+  <p class="text-muted small mb-2">Scans count for the service chosen here. Change it when the next service starts.</p>
+  <form method="post" action="{{ url_for('admin_set_qr_service') }}" class="d-flex gap-2 flex-wrap">
+    <select class="form-select" name="service_id" style="max-width:280px;">
+      {% for s in services %}<option value="{{ s.id }}" {{ 'selected' if s.id == current_service.id else '' }}>{{ s.name }}</option>{% endfor %}
+    </select>
+    <button class="btn btn-primary" type="submit">Use this service</button>
+  </form>
+</div>
+{% endif %}
+
+{% if current_user.role == 'admin' %}
 <div class="card p-3 mt-3 no-print">
   <h6 class="mb-1"><i class="bi bi-arrow-repeat"></i> Replace the code</h6>
   <p class="text-muted small mb-2">
@@ -43,6 +57,7 @@
     <button class="btn btn-outline-danger btn-sm" type="submit">Replace QR Code</button>
   </form>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

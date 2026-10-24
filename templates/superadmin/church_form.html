@@ -15,6 +15,10 @@
           <input type="text" class="form-control text-uppercase" name="code" value="{{ church.code if church else '' }}" maxlength="10" required {{ 'readonly' if church else '' }}>
         </div>
         <div class="mb-3">
+          <label class="form-label">Subdomain <small class="text-muted">(optional; e.g. <code>rccg</code> gives <code>rccg.{{ base_domain or 'yourdomain.com' }}</code>)</small></label>
+          <input type="text" class="form-control" name="subdomain" value="{{ church.subdomain if church and church.subdomain else '' }}" maxlength="63" pattern="[A-Za-z0-9\-]*">
+        </div>
+        <div class="mb-3">
           <label class="form-label">Pastor's Name</label>
           <input type="text" class="form-control" name="pastor_name" value="{{ church.pastor_name if church else '' }}">
         </div>
@@ -35,6 +39,16 @@
         <div class="mb-3">
           <label class="form-label">Description</label>
           <textarea class="form-control" name="description" rows="3">{{ church.description if church else '' }}</textarea>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Features for this church</label>
+          {% set on = church_features(church) if church else default_features %}
+          {% for key, label in all_features.items() %}
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="feature_{{ key }}" id="f_{{ key }}" {{ 'checked' if key in on else '' }}>
+            <label class="form-check-label" for="f_{{ key }}">{{ label }}</label>
+          </div>
+          {% endfor %}
         </div>
         <div class="mb-3">
           <label class="form-label">Church Logo</label>

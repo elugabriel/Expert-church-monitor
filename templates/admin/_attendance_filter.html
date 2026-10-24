@@ -1,0 +1,26 @@
+{% if filter_on %}
+<div class="col-12">
+  <label class="form-label mb-1">Only these days <small class="text-muted">(leave all unticked for every day)</small></label>
+  <div class="d-flex flex-wrap gap-3">
+    {% for name in weekday_names %}
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="day" value="{{ loop.index0 }}" id="day{{ loop.index0 }}" {{ 'checked' if loop.index0 in days else '' }}>
+      <label class="form-check-label" for="day{{ loop.index0 }}">{{ name[:3] }}</label>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% if services|length > 1 %}
+<div class="col-12">
+  <label class="form-label mb-1">Only these services <small class="text-muted">(leave all unticked for every service)</small></label>
+  <div class="d-flex flex-wrap gap-3">
+    {% for s in services %}
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="service" value="{{ s.id }}" id="svc{{ s.id }}" {{ 'checked' if s.id in picked else '' }}>
+      <label class="form-check-label" for="svc{{ s.id }}">{{ s.name }}</label>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endif %}

@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}First Timers{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <div>
+    <h3 class="mb-0"><i class="bi bi-person-heart"></i> First Timers</h3>
+    <span class="text-muted">
+      Followed for {{ months }} month{{ 's' if months != 1 }}. Once that time is over, anyone who has attended
+      at least {{ minimum }} service{{ 's' if minimum != 1 }} becomes a permanent member automatically.
+    </span>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{{ url_for('admin_first_timers') }}" class="btn btn-sm {{ 'btn-outline-secondary' if only_followup else 'btn-primary' }}">Everyone</a>
+    <a href="{{ url_for('admin_first_timers', filter='followup') }}" class="btn btn-sm {{ 'btn-warning' if only_followup else 'btn-outline-warning' }}">Needs follow-up</a>
+    <a href="{{ url_for('admin_new_member') }}" class="btn btn-sm btn-outline-success"><i class="bi bi-person-plus"></i> Register First Timer</a>
+  </div>
+</div>
+
+{% if current_user.role == 'admin' %}
+<div class="card p-3 mb-4">
+  <form method="post" action="{{ url_for('admin_first_timer_settings') }}" class="row g-3 align-items-end">
+    <div class="col-md-4">
+      <label class="form-label">Tracking period (months)</label>
+      <input type="number" class="form-control" name="months" min="1" max="24" value="{{ months }}" required>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Minimum services to attend</label>
+      <input type="number" class="form-control" name="minimum" min="1" max="100" value="{{ minimum }}" required>
+    </div>
+    <div class="col-md-4">
+      <button class="btn btn-outline-primary w-100" type="submit">Save settings</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+<div class="card p-3">
+  <div class="table-responsive">
+  <table class="table align-middle">
+    <thead><tr>{% if messaging %}<th style="width:40px;"><input class="form-check-input" type="checkbox" id="select-all" title="Tick everyone shown"></th>{% endif %}<th>Number</th><th>Name</th><th>Phone</th><th>Started</th><th>Period ends</th><th>Days left</th><th>Attended</th><th>Status</th>{% if messaging %}<th>Messaged today</th>{% endif %}<th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        {% if messaging %}<td><input class="form-check-input member-box" type="checkbox" name="member_ids" value="{{ r.member.id }}" form="msg-form"></td>{% endif %}
+        <td><span class="badge bg-dark">{{ r.member.member_number }}</span></td>
+        <td>{{ r.member.full_name }}</td>
+        <td>{{ r.member.phone or '-' }}</td>
+        <td>{{ r.start.strftime('%d %b %Y') }}</td>
+        <td>{{ r.end.strftime('%d %b %Y') }}</td>
+        <td>{{ r.days_left if r.days_left is not none else '-' }}</td>
+        <td>{{ r.attended }} / {{ r.minimum }}</td>
+        <td>
+          {% if r.needs_followup %}<span class="badge bg-warning text-dark">Needs follow-up</span>
+          {% else %}<span class="badge bg-info text-dark">Tracking</span>{% endif %}
+        </td>
+        {% if messaging %}<td>
+          {% if (r.member.id, 'sms') in sent %}<span class="badge bg-success">SMS sent</span>{% endif %}
+          {% if (r.member.id, 'email') in sent %}<span class="badge bg-success">Email sent</span>{% endif %}
+        </td>{% endif %}
+        <td class="text-end">
+          {% if current_user.role == 'admin' %}
+          <form method="post" action="{{ url_for('admin_promote_first_timer', member_id=r.member.id) }}" class="d-inline"
+                onsubmit="return confirm('Make {{ r.member.full_name }} a permanent member now?');">
+            <button class="btn btn-sm btn-outline-success">Make Member</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="11" class="text-center text-muted py-4">{{ 'Nobody needs follow-up right now.' if only_followup else 'No first timers are being tracked.' }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+{% if messaging %}
+{% set panel_action = url_for('admin_message_first_timers') %}
+{% include "admin/_message_panel.html" %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if messaging %}
+<script>
+  document.getElementById('select-all').addEventListener('change', function () {
+    var on = this.checked;
+    document.querySelectorAll('.member-box').forEach(function (cb) { cb.checked = on; });
+  });
+</script>
+{% endif %}
+{% endblock %}

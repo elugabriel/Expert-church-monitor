@@ -1,0 +1,49 @@
+{# Needs: panel_action, templates, sms_ready, mail_ready, placeholders, sms_max. Optional: when.
+   The ticked people live in the table above (checkboxes with form="msg-form"). #}
+{% set can_edit = current_user.role == 'admin' %}
+<form method="post" action="{{ panel_action }}" id="msg-form" class="card p-3 mt-4">
+  {% if when %}<input type="hidden" name="when" value="{{ when }}">{% endif %}
+  <h5 class="mb-1"><i class="bi bi-send"></i> Send a message to the ticked people</h5>
+  <p class="text-muted small mb-3">
+    Nothing is sent automatically. Tick people in the list, then press a Send button.
+    You can personalise with:
+    {% for p in placeholders %}<code>{{ p }}</code>{{ ', ' if not loop.last }}{% endfor %}.
+    {% if not can_edit %}The wording is set by your church admin.{% endif %}
+  </p>
+
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <label class="form-label d-flex justify-content-between"><span>SMS</span><span class="text-muted small" id="sms-count"></span></label>
+      <textarea class="form-control" name="sms_body" id="sms-body" rows="5" maxlength="{{ sms_max }}" {{ '' if can_edit else 'readonly' }}>{{ templates.sms_body }}</textarea>
+      {% if not sms_ready %}<div class="form-text text-warning">SMS isn't set up on the server yet.</div>{% endif %}
+    </div>
+    <div class="col-lg-6">
+      <label class="form-label">Email subject</label>
+      <input type="text" class="form-control mb-2" name="email_subject" maxlength="200" value="{{ templates.email_subject }}" {{ '' if can_edit else 'readonly' }}>
+      <label class="form-label">Email message</label>
+      <textarea class="form-control" name="email_body" rows="5" {{ '' if can_edit else 'readonly' }}>{{ templates.email_body }}</textarea>
+      {% if not mail_ready %}<div class="form-text text-warning">Email isn't set up on the server yet.</div>{% endif %}
+    </div>
+  </div>
+
+  <div class="d-flex flex-wrap gap-2 mt-3">
+    <button class="btn btn-primary" type="submit" name="action" value="sms"
+            onclick="return confirm('Send the SMS to everyone ticked?');"><i class="bi bi-chat-dots"></i> Send SMS to ticked</button>
+    <button class="btn btn-primary" type="submit" name="action" value="email"
+            onclick="return confirm('Send the email to everyone ticked?');"><i class="bi bi-envelope"></i> Send email to ticked</button>
+    {% if can_edit %}
+    <button class="btn btn-outline-secondary" type="submit" name="action" value="save"><i class="bi bi-save"></i> Save wording only</button>
+    {% endif %}
+  </div>
+</form>
+<script>
+  (function () {
+    var box = document.getElementById('sms-body'), out = document.getElementById('sms-count');
+    if (!box || !out) return;
+    function update() {
+      var n = box.value.length, pages = n <= 160 ? 1 : Math.ceil(n / 153);
+      out.textContent = n + ' characters · ' + pages + ' page' + (pages === 1 ? '' : 's');
+    }
+    box.addEventListener('input', update); update();
+  })();
+</script>

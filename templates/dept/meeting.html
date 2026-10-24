@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}{{ meeting.title }}{% endblock %}
+{% block content %}
+{% include "dept/_nav.html" %}
+
+<form method="post">
+  <div class="card p-3 mb-4">
+    <div class="row g-2">
+      <div class="col-md-4"><label class="form-label">Date</label><input type="date" class="form-control" name="meeting_date" value="{{ meeting.meeting_date.isoformat() }}" required></div>
+      <div class="col-md-8"><label class="form-label">Meeting</label><input type="text" class="form-control" name="title" maxlength="150" value="{{ meeting.title }}" required></div>
+    </div>
+  </div>
+
+  <div class="card p-3 mb-4">
+    <h5 class="mb-1">Attendance</h5>
+    <p class="text-muted small">Mark each worker. Anyone with approved leave on this date is pre-set to Excused. Excused meetings are not counted against a worker.</p>
+    <div class="table-responsive">
+    <table class="table align-middle">
+      <thead><tr><th>Worker</th><th>Status</th><th>Note</th></tr></thead>
+      <tbody>
+      {% for m in members %}
+        {% set mark = marks.get(m.id) %}
+        {% set current = mark.status if mark else ('excused' if m.id in on_leave else '') %}
+        <tr>
+          <td>{{ m.full_name }} <span class="badge bg-dark">{{ m.member_number }}</span>{% if m.id in on_leave %} <span class="badge bg-info text-dark">approved leave</span>{% endif %}</td>
+          <td>
+            <select class="form-select form-select-sm" name="status_{{ m.id }}" style="min-width:140px;">
+              <option value="" {{ 'selected' if not current }}>Not marked</option>
+              {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if current == s }}>{{ s|capitalize }}</option>{% endfor %}
+            </select>
+          </td>
+          <td><input type="text" class="form-control form-control-sm" name="note_{{ m.id }}" maxlength="200" placeholder="e.g. arrived 20 minutes late" value="{{ mark.note if mark and mark.note else '' }}"></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="3" class="text-center text-muted py-4">There are no workers in this unit yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="card p-3 mb-4">
+    <h5>Minutes</h5>
+    <textarea class="form-control" name="minutes" rows="8" placeholder="Type the minutes or a short report of this meeting.">{{ meeting.minutes or '' }}</textarea>
+  </div>
+
+  <div class="d-flex flex-wrap gap-2">
+    <button class="btn btn-primary" type="submit" name="action" value="save"><i class="bi bi-save"></i> Save</button>
+    <button class="btn btn-outline-success" type="submit" name="action" value="send_minutes"
+            onclick="return confirm('Save and send these minutes to the pastoral office?');"><i class="bi bi-send"></i> Save and send minutes to the pastoral office</button>
+    <a href="{{ url_for('dept_meetings', dept_id=dept.id) }}" class="btn btn-light">Back to meetings</a>
+  </div>
+</form>
+{% endblock %}

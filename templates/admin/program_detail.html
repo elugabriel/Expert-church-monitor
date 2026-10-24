@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}{{ program.name }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2 no-print">
+  <div>
+    <h3 class="mb-0"><i class="bi bi-calendar-event"></i> {{ program.name }}</h3>
+    <span class="text-muted">
+      {{ program.program_date.strftime('%A, %d %B %Y') if program.program_date else 'No date set' }}
+      &middot;
+      {% if state == 'open' %}<span class="badge bg-success">Registration open</span>
+      {% elif state == 'full' %}<span class="badge bg-warning text-dark">Full</span>
+      {% else %}<span class="badge bg-secondary">Closed</span>{% endif %}
+    </span>
+    {% if program.description %}<p class="mt-2 mb-0">{{ program.description }}</p>{% endif %}
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{{ url_for('admin_programs') }}" class="btn btn-light">All Programs</a>
+    {% if current_user.role == 'admin' %}
+    <a href="{{ url_for('admin_edit_program', program_id=program.id) }}" class="btn btn-outline-secondary">Edit</a>
+    <form method="post" action="{{ url_for('admin_toggle_program', program_id=program.id) }}">
+      <button class="btn {{ 'btn-outline-warning' if program.is_open else 'btn-outline-success' }}">{{ 'Close registration' if program.is_open else 'Reopen registration' }}</button>
+    </form>
+    <form method="post" action="{{ url_for('admin_delete_program', program_id=program.id) }}"
+          onsubmit="return confirm('Delete this program and ALL its registrations? This cannot be undone.');">
+      <button class="btn btn-outline-danger">Delete</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card p-4 text-center qr-sheet mb-3">
+  <h2 class="mb-1">{{ program.name }}</h2>
+  <p class="text-muted mb-3">Scan with your phone camera to register</p>
+  <div id="qr" class="mx-auto" style="width:100%; max-width:320px;" aria-label="QR code for registration"></div>
+</div>
+
+<div class="card p-3 mb-4 no-print">
+  <label class="form-label small text-muted mb-1">Registration link</label>
+  <div class="input-group">
+    <input type="text" class="form-control" id="reg-url" value="{{ public_url }}" readonly>
+    <button class="btn btn-outline-secondary" type="button" id="copy-btn"><i class="bi bi-clipboard"></i> Copy</button>
+    <button class="btn btn-primary" type="button" onclick="window.print()"><i class="bi bi-printer"></i> Print QR</button>
+  </div>
+  <div class="form-text">
+    {% if program.deadline %}Registration closes after {{ program.deadline.strftime('%d %B %Y') }}. {% endif %}
+    {% if program.cap %}Limit: {{ program.cap }} people. {% endif %}
+    {% if state != 'open' %}<strong>{{ state_message }}</strong>{% endif %}
+  </div>
+</div>
+
+<div class="row g-3 mb-3 no-print">
+  <div class="col-4"><div class="card p-3 text-center"><div class="small text-muted">Registered</div><h3 class="mb-0">{{ total }}{% if program.cap %}<small class="text-muted"> / {{ program.cap }}</small>{% endif %}</h3></div></div>
+  <div class="col-4"><div class="card p-3 text-center"><div class="small text-muted">Members</div><h3 class="mb-0">{{ members }}</h3></div></div>
+  <div class="col-4"><div class="card p-3 text-center"><div class="small text-muted">Visitors</div><h3 class="mb-0">{{ visitors }}</h3></div></div>
+</div>
+
+<div class="card p-3 no-print">
+  <form method="get" class="row g-2 mb-3">
+    <div class="col-md-5"><input type="text" class="form-control" name="q" value="{{ q }}" placeholder="Search name, phone or email"></div>
+    <div class="col-md-3">
+      <select class="form-select" name="kind">
+        <option value="" {{ 'selected' if not kind }}>Members and visitors</option>
+        <option value="member" {{ 'selected' if kind == 'member' }}>Members only</option>
+        <option value="visitor" {{ 'selected' if kind == 'visitor' }}>Visitors only</option>
+      </select>
+    </div>
+    <div class="col-md-2"><button class="btn btn-outline-secondary w-100">Filter</button></div>
+    {% if current_user.role == 'admin' %}
+    <div class="col-md-2"><a class="btn btn-outline-success w-100" href="{{ url_for('admin_program_detail', program_id=program.id, q=q, kind=kind, export=1) }}"><i class="bi bi-download"></i> Export CSV</a></div>
+    {% endif %}
+  </form>
+  <div class="table-responsive">
+  <table class="table align-middle">
+    <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Gender</th><th>Birthday</th><th>Marital</th><th>Occupation</th><th>Address</th><th>Type</th>{% if program.extra_question %}<th>{{ program.extra_question }}</th>{% endif %}<th>Registered</th><th></th></tr></thead>
+    <tbody>
+    {% for r in regs %}
+      <tr>
+        <td>{{ r.full_name }}</td>
+        <td>{{ r.phone }}</td>
+        <td>{{ r.email or '-' }}</td>
+        <td>{{ r.gender or '-' }}</td>
+        <td>{{ r.date_of_birth.strftime('%d %b') if r.date_of_birth else '-' }}</td>
+        <td>{{ r.marital_status or '-' }}</td>
+        <td>{{ r.occupation or '-' }}</td>
+        <td>{{ r.address or '-' }}</td>
+        <td>{% if r.is_member %}<span class="badge bg-success">Member</span>{% else %}<span class="badge bg-secondary">Visitor</span>{% endif %}</td>
+        {% if program.extra_question %}<td>{{ r.extra_answer or '-' }}</td>{% endif %}
+        <td>{{ (r.registered_at|lagos_time).strftime('%d %b, %I:%M %p') }}</td>
+        <td class="text-end">
+          {% if current_user.role == 'admin' %}
+          <form method="post" action="{{ url_for('admin_delete_registration', program_id=program.id, reg_id=r.id) }}"
+                onsubmit="return confirm('Remove {{ r.full_name }} from this program?');">
+            <button class="btn btn-sm btn-outline-danger">Remove</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="12" class="text-center text-muted py-4">No registrations found.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script>
+  (function () {
+    var url = {{ public_url|tojson }};
+    var qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    document.getElementById('qr').innerHTML = qr.createSvgTag({ cellSize: 8, margin: 2, scalable: true });
+    document.getElementById('copy-btn').addEventListener('click', function () {
+      var input = document.getElementById('reg-url');
+      input.select();
+      (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).catch(function () {
+        document.execCommand('copy');
+      });
+      this.innerHTML = '<i class="bi bi-check2"></i> Copied';
+    });
+  })();
+</script>
+<style>
+  #qr svg { display: block; width: 100%; height: auto; }
+  @media print {
+    .sidebar, .topbar, footer, .alert, .no-print { display: none !important; }
+    .main-area, .page-body { margin: 0 !important; padding: 0 !important; }
+    .qr-sheet { border: none !important; box-shadow: none !important; }
+  }
+</style>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <div>
+    <h3 class="mb-0"><i class="bi bi-person-badge"></i> Users</h3>
+    <span class="text-muted">Ushers and volunteers who can mark attendance, add members and fix member details. They cannot delete, send messages, export or change settings.</span>
+  </div>
+  <a href="{{ url_for('admin_new_user') }}" class="btn btn-primary"><i class="bi bi-person-plus"></i> Add User</a>
+</div>
+<div class="card p-3">
+  <div class="table-responsive">
+  <table class="table align-middle">
+    <thead><tr><th>Username</th><th>Full Name</th><th>Created</th><th></th></tr></thead>
+    <tbody>
+    {% for u in users %}
+      <tr>
+        <td>{{ u.username }}{% if u.must_change_password %} <span class="badge bg-warning text-dark">must change password</span>{% endif %}</td>
+        <td>{{ u.full_name or '-' }}</td>
+        <td>{{ u.created_at.strftime('%d %b %Y') if u.created_at else '-' }}</td>
+        <td class="text-end">
+          <form method="post" action="{{ url_for('admin_reset_user_password', user_id=u.id) }}" class="d-inline"
+                onsubmit="return confirm('Reset the password for {{ u.username }}? A new temporary password will be shown once.');">
+            <button class="btn btn-sm btn-outline-secondary">Reset Password</button>
+          </form>
+          <form method="post" action="{{ url_for('admin_delete_user', user_id=u.id) }}" class="d-inline"
+                onsubmit="return confirm('Remove user {{ u.username }}?');">
+            <button class="btn btn-sm btn-outline-danger">Remove</button>
+          </form>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4" class="text-center text-muted py-4">No users yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

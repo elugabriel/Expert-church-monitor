@@ -8,8 +8,10 @@
   </div>
   <div class="d-flex gap-2 flex-wrap">
     <a href="{{ url_for('admin_children_checklist') }}" class="btn btn-success"><i class="bi bi-check2-circle"></i> Take Attendance</a>
+    {% if current_user.role == 'admin' %}
     <a href="{{ url_for('admin_move_to_children') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left-circle"></i> Move Adults to Children</a>
     <a href="{{ url_for('admin_members_left') }}" class="btn btn-outline-secondary"><i class="bi bi-person-dash"></i> Members Who Left {% if left_count %}<span class="badge bg-secondary">{{ left_count }}</span>{% endif %}</a>
+    {% endif %}
     <a href="{{ url_for('admin_new_child') }}" class="btn btn-primary"><i class="bi bi-person-plus"></i> Register Child</a>
   </div>
 </div>
@@ -20,7 +22,7 @@
   </div>
 </form>
 
-{% if has_no_members and not next_number_preview.endswith('-0001') %}
+{% if current_user.role == 'admin' and has_no_members and not next_number_preview.endswith('-0001') %}
 <div class="alert alert-info d-flex justify-content-between align-items-center flex-wrap gap-2">
   <div>
     <i class="bi bi-info-circle"></i> There are no member records at all (adult or child) for this church right now.
@@ -63,6 +65,7 @@
         </td>
         <td class="text-end">
           <a href="{{ url_for('admin_edit_child', member_id=m.id) }}" class="btn btn-sm btn-outline-primary">Edit</a>
+          {% if current_user.role == 'admin' %}
           <form method="post" action="{{ url_for('admin_move_member_out', member_id=m.id) }}" class="d-inline"
                 onsubmit="return confirm('Move {{ m.full_name }} ({{ m.member_number }}) to Members Who Left?');">
             <button class="btn btn-sm btn-outline-warning">Move to Left</button>
@@ -71,6 +74,7 @@
                 onsubmit="return confirm('Remove {{ m.full_name }} ({{ m.member_number }}) from the church list? This also deletes their attendance history and cannot be undone.');">
             <button class="btn btn-sm btn-outline-danger">Delete</button>
           </form>
+          {% endif %}
         </td>
       </tr>
     {% else %}

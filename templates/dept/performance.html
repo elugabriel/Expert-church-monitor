@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ dept.name }} performance{% endblock %}
+{% block content %}
+{% include "dept/_nav.html" %}
+
+<div class="card p-3 mb-4 no-print">
+  <form method="get" class="row g-3 align-items-end">
+    <div class="col-md-4"><label class="form-label">From</label><input type="date" class="form-control" name="start" value="{{ start }}"></div>
+    <div class="col-md-4"><label class="form-label">To</label><input type="date" class="form-control" name="end" value="{{ end }}"></div>
+    <div class="col-md-4 d-flex gap-2">
+      <button class="btn btn-primary flex-fill" type="submit">Show</button>
+      <button class="btn btn-outline-secondary" type="button" onclick="window.print()"><i class="bi bi-printer"></i></button>
+      {% if current_user.role == 'admin' %}
+      <a class="btn btn-outline-success" href="{{ url_for('dept_performance', dept_id=dept.id, start=start, end=end, export=1) }}"><i class="bi bi-download"></i></a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+<div class="card p-3">
+  <h5 class="mb-1">How workers show up</h5>
+  <p class="text-muted small">{{ meetings }} meeting(s) between {{ start }} and {{ end }}. Attendance is present and late out of all meetings marked. Punctuality is on time out of those who came. Excused meetings are left out.</p>
+  <div class="table-responsive">
+  <table class="table align-middle">
+    <thead><tr><th>Worker</th><th>On time</th><th>Late</th><th>Absent</th><th>Excused</th><th>Attendance</th><th>Punctuality</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td>{{ r.member.full_name }} <span class="badge bg-dark">{{ r.member.member_number }}</span></td>
+        <td>{{ r.present }}</td><td>{{ r.late }}</td><td>{{ r.absent }}</td><td>{{ r.excused }}</td>
+        <td>{% if r.attendance_rate is not none %}<span class="badge {{ 'bg-success' if r.attendance_rate >= 80 else ('bg-warning text-dark' if r.attendance_rate >= 50 else 'bg-danger') }}">{{ r.attendance_rate }}%</span>{% else %}-{% endif %}</td>
+        <td>{% if r.punctuality_rate is not none %}<span class="badge {{ 'bg-success' if r.punctuality_rate >= 80 else ('bg-warning text-dark' if r.punctuality_rate >= 50 else 'bg-danger') }}">{{ r.punctuality_rate }}%</span>{% else %}-{% endif %}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="text-center text-muted py-4">No workers in this unit yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+<style>@media print { .sidebar, .topbar, footer, .alert, .no-print, .nav-pills { display: none !important; } }</style>
+{% endblock %}

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Attendance Report{% endblock %}
+{% block content %}
+<h3 class="mb-4"><i class="bi bi-bar-chart-line"></i> Attendance Report</h3>
+<div class="card p-3 mb-4">
+  <form method="get" class="row g-3 align-items-end">
+    <div class="col-md-4">
+      <label class="form-label">From</label>
+      <input type="date" class="form-control" name="start" value="{{ start }}" required>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">To</label>
+      <input type="date" class="form-control" name="end" value="{{ end }}" required>
+    </div>
+    <div class="col-md-4">
+      <button class="btn btn-primary w-100" type="submit">Generate Report</button>
+    </div>
+    {% with filter_on=True %}{% include "admin/_attendance_filter.html" %}{% endwith %}
+  </form>
+</div>
+
+<div class="card p-3 mb-4">
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h5 class="mb-0">{{ total_checkins }} check-in(s) from {{ start }} to {{ end }}</h5>
+    {% if current_user.role == 'admin' %}
+    <a class="btn btn-outline-success btn-sm" href="{{ request.full_path }}{{ '&' if '?' in request.full_path else '?' }}export=1">
+      <i class="bi bi-download"></i> Export CSV
+    </a>
+    {% endif %}
+  </div>
+  <div class="table-responsive">
+  <table class="table align-middle">
+    <thead><tr><th>Date</th><th>Day</th><th>Service</th><th>Present</th></tr></thead>
+    <tbody>
+    {% for r in service_rows %}
+      <tr><td>{{ r.date.strftime('%d %b %Y') }}</td><td>{{ r.weekday }}</td><td>{{ r.service }}</td><td>{{ r.present }}</td></tr>
+    {% else %}
+      <tr><td colspan="4" class="text-center text-muted py-4">No attendance matches these filters.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+{% if member_rows %}
+<div class="card p-3">
+  <h5 class="mb-3">Services attended per member</h5>
+  <div class="table-responsive">
+  <table class="table align-middle">
+    <thead><tr><th>Number</th><th>Name</th><th>Attended</th></tr></thead>
+    <tbody>
+    {% for r in member_rows %}
+      <tr><td><span class="badge bg-dark">{{ r.member.member_number }}</span></td><td>{{ r.member.full_name }}</td><td>{{ r.count }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

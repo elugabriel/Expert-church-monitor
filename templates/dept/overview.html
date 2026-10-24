@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{{ dept.name }}{% endblock %}
+{% block content %}
+{% include "dept/_nav.html" %}
+
+<div class="row g-3 mb-4">
+  <div class="col-4"><div class="card p-3 text-center"><div class="small text-muted">Workers</div><h3 class="mb-0">{{ counts.roster }}</h3></div></div>
+  <div class="col-4"><div class="card p-3 text-center"><div class="small text-muted">Leave requests waiting</div><h3 class="mb-0">{{ counts.pending_leave }}</h3></div></div>
+  <div class="col-4"><div class="card p-3 text-center"><div class="small text-muted">Reports sent, not yet reviewed</div><h3 class="mb-0">{{ counts.unreviewed }}</h3></div></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card p-3 h-100">
+      <h5>Recent meetings</h5>
+      {% for m in meetings %}
+        <div class="d-flex justify-content-between border-bottom py-2">
+          <a href="{{ url_for('dept_meeting', dept_id=dept.id, meeting_id=m.id) }}">{{ m.title }}</a>
+          <span class="text-muted">{{ m.meeting_date.strftime('%d %b %Y') }}</span>
+        </div>
+      {% else %}<p class="text-muted mb-0">No meetings yet.</p>{% endfor %}
+      <a href="{{ url_for('dept_meetings', dept_id=dept.id) }}" class="btn btn-sm btn-outline-primary mt-3 align-self-start">All meetings and new meeting</a>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card p-3 h-100">
+      <h5>Leave requests waiting</h5>
+      {% for r in pending %}
+        <div class="border-bottom py-2">
+          <strong>{{ r.member.full_name }}</strong>
+          <span class="text-muted">{{ r.start_date.strftime('%d %b') }}{% if r.end_date != r.start_date %} to {{ r.end_date.strftime('%d %b') }}{% endif %}</span>
+          <div class="small">{{ r.reason }}</div>
+        </div>
+      {% else %}<p class="text-muted mb-0">Nothing waiting.</p>{% endfor %}
+      <a href="{{ url_for('dept_leave', dept_id=dept.id) }}" class="btn btn-sm btn-outline-primary mt-3 align-self-start">Review leave requests</a>
+    </div>
+  </div>
+  <div class="col-12">
+    <div class="card p-3">
+      <h5>Recent reports to the pastoral office</h5>
+      {% for r in reports %}
+        <div class="d-flex justify-content-between border-bottom py-2">
+          <span>{{ r.title }} <span class="badge bg-secondary">{{ r.kind }}</span></span>
+          <span class="text-muted">{{ (r.submitted_at|lagos_time).strftime('%d %b %Y') }}{% if r.reviewed_at %} &middot; reviewed{% endif %}</span>
+        </div>
+      {% else %}<p class="text-muted mb-0">No reports sent yet.</p>{% endfor %}
+      <a href="{{ url_for('dept_reports', dept_id=dept.id) }}" class="btn btn-sm btn-outline-primary mt-3 align-self-start">Send or view reports</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

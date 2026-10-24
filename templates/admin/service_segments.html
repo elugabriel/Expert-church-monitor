@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Service Segments{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <h3 class="mb-0"><i class="bi bi-sliders"></i> Service Segments</h3>
+  <span class="text-muted">The parts of a service whose minister is logged. Rename, add or remove them to match how your church runs its services.</span>
+</div>
+
+<div class="card p-3 mb-4">
+  <form method="post" class="row g-2 align-items-end">
+    <div class="col-md-9">
+      <label class="form-label">New segment</label>
+      <input type="text" class="form-control" name="name" maxlength="120" placeholder="e.g. Offering and Tithes" required>
+    </div>
+    <div class="col-md-3"><button class="btn btn-primary w-100" type="submit"><i class="bi bi-plus-lg"></i> Add</button></div>
+  </form>
+</div>
+
+<div class="card p-3">
+  {% for s in segments %}
+  <div class="row g-2 align-items-center mb-2">
+    <form method="post" action="{{ url_for('admin_rename_segment', segment_id=s.id) }}" class="col-md-9 d-flex gap-2">
+      <input type="text" class="form-control form-control-sm" name="name" value="{{ s.name }}" maxlength="120" required>
+      <button class="btn btn-sm btn-outline-primary">Save</button>
+    </form>
+    <form method="post" action="{{ url_for('admin_delete_segment', segment_id=s.id) }}" class="col-md-3 text-end"
+          onsubmit="return confirm('Remove this segment? Names already logged against it are removed too.');">
+      <button class="btn btn-sm btn-outline-danger">Remove</button>
+    </form>
+  </div>
+  {% endfor %}
+  <p class="text-muted small mb-0 mt-2">Renaming keeps the history. Removing a segment also removes the names logged against it in past records.</p>
+</div>
+{% endblock %}

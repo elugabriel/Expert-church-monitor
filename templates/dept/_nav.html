@@ -1,0 +1,13 @@
+<div class="mb-3">
+  <h3 class="mb-0"><i class="bi bi-diagram-3"></i> {{ dept.name }}</h3>
+  {% if dept.description %}<span class="text-muted">{{ dept.description }}</span>{% endif %}
+</div>
+<ul class="nav nav-pills mb-4 flex-wrap gap-1">
+  {% set tabs = [('dept_home', 'Overview'), ('dept_roster', 'Roster'), ('dept_meetings', 'Meetings'), ('dept_performance', 'Performance'), ('dept_leave', 'Leave Requests'), ('dept_reports', 'Reports')] %}
+  {% for endpoint, label in tabs %}
+  <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint == endpoint or (endpoint == 'dept_meetings' and request.endpoint == 'dept_meeting') else '' }}" href="{{ url_for(endpoint, dept_id=dept.id) }}">{{ label }}</a></li>
+  {% endfor %}
+  {% if current_user.role == 'admin' %}
+  <li class="nav-item"><a class="nav-link {{ 'active' if request.endpoint == 'dept_manage' else '' }}" href="{{ url_for('dept_manage', dept_id=dept.id) }}"><i class="bi bi-gear"></i> Manage</a></li>
+  {% endif %}
+</ul>

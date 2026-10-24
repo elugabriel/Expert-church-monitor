@@ -75,6 +75,18 @@ Uses SQLAlchemy against whatever `DATABASE_URL` you set:
      the church name). Set `EBULKSMS_DND=0` to skip MTN DND numbers, which cost 2 units each.
 6. If you want uploaded logos/photos to survive restarts, attach a persistent disk mounted at the app directory, or swap the upload code to a cloud storage bucket.
 
+## One address per church (subdomains)
+
+Set `BASE_DOMAIN=expertchurch.com` and give each church a **Subdomain** (Superadmin → Add/Edit Church),
+e.g. `rccg` → `rccg.expertchurch.com`.
+
+- On Render, open the web service → **Settings → Custom Domains** and add each address, or add the wildcard
+  `*.expertchurch.com` once. Then create the DNS records Render shows you at your domain registrar.
+- A church's address only lets that church's admins in, and its QR check-in link uses that address.
+- The superadmin logs in on the main address (`expertchurch.com`, `www.` or the `onrender.com` one).
+- Leave `BASE_DOMAIN` empty for local development; the app then ignores the host name.
+- `render.yaml` creates the web service and a Postgres database together (Blueprint → New Blueprint Instance).
+
 ## Super admin login keeps resetting on Render — why, and the fix
 
 Render's web service disk is **ephemeral**: it's wiped on every deploy/restart.

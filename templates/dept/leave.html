@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}{{ dept.name }} leave requests{% endblock %}
+{% block content %}
+{% include "dept/_nav.html" %}
+
+<div class="card p-3 mb-4">
+  <label class="form-label small text-muted mb-1">Link for workers to ask for leave (no login needed)</label>
+  <div class="input-group">
+    <input type="text" class="form-control" id="leave-url" value="{{ leave_url }}" readonly>
+    <button class="btn btn-outline-secondary" type="button" id="copy-leave"><i class="bi bi-clipboard"></i> Copy</button>
+  </div>
+  <div class="form-text">Share it with the unit. Workers enter their member number and phone number to prove who they are.</div>
+</div>
+
+<div class="d-flex gap-2 mb-3">
+  <a href="{{ url_for('dept_leave', dept_id=dept.id, show='pending') }}" class="btn btn-sm {{ 'btn-primary' if show == 'pending' else 'btn-outline-secondary' }}">Waiting</a>
+  <a href="{{ url_for('dept_leave', dept_id=dept.id, show='all') }}" class="btn btn-sm {{ 'btn-primary' if show == 'all' else 'btn-outline-secondary' }}">All requests</a>
+</div>
+
+<div class="card p-3">
+  {% for r in requests %}
+  <div class="border-bottom py-3">
+    <div class="d-flex justify-content-between flex-wrap gap-2">
+      <div>
+        <strong>{{ r.member.full_name }}</strong> <span class="badge bg-dark">{{ r.member.member_number }}</span>
+        <div class="text-muted">{{ r.start_date.strftime('%a %d %b %Y') }}{% if r.end_date != r.start_date %} to {{ r.end_date.strftime('%a %d %b %Y') }}{% endif %}</div>
+      </div>
+      <div>
+        {% if r.status == 'pending' %}<span class="badge bg-warning text-dark">Waiting</span>
+        {% elif r.status == 'approved' %}<span class="badge bg-success">Approved</span>
+        {% else %}<span class="badge bg-danger">Declined</span>{% endif %}
+      </div>
+    </div>
+    <p class="mb-2 mt-2">{{ r.reason }}</p>
+    {% if r.status == 'pending' %}
+    <form method="post" action="{{ url_for('dept_leave_decide', dept_id=dept.id, request_id=r.id) }}" class="row g-2">
+      <div class="col-md-6"><input type="text" class="form-control form-control-sm" name="note" maxlength="300" placeholder="Note for the worker (optional)"></div>
+      <div class="col-md-6 d-flex gap-2">
+        <button class="btn btn-sm btn-success" name="decision" value="approved">Approve</button>
+        <button class="btn btn-sm btn-outline-danger" name="decision" value="declined">Decline</button>
+      </div>
+    </form>
+    {% elif r.decision_note %}<div class="small text-muted">Note: {{ r.decision_note }}</div>{% endif %}
+  </div>
+  {% else %}
+  <p class="text-muted mb-0 py-3">{{ 'Nothing is waiting for a decision.' if show == 'pending' else 'No leave requests yet.' }}</p>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.getElementById('copy-leave').addEventListener('click', function () {
+    var input = document.getElementById('leave-url'); input.select();
+    (navigator.clipboard ? navigator.clipboard.writeText(input.value) : Promise.reject()).catch(function () { document.execCommand('copy'); });
+    this.innerHTML = '<i class="bi bi-check2"></i> Copied';
+  });
+</script>
+{% endblock %}

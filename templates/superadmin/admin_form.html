@@ -14,11 +14,7 @@
           <label class="form-label">Username *</label>
           <input type="text" class="form-control" name="username" required>
         </div>
-        <div class="mb-3">
-          <label class="form-label">Password *</label>
-          <input type="text" class="form-control" name="password" required>
-          <div class="form-text">Share this securely with the admin. They can be given a new one anytime.</div>
-        </div>
+        <p class="text-muted small">A temporary password is generated and shown once after you create the admin. They must change it when they first log in.</p>
         <button class="btn btn-primary" type="submit">Create Admin</button>
         <a href="{{ url_for('superadmin_church_detail', church_id=church.id) }}" class="btn btn-light">Cancel</a>
       </form>

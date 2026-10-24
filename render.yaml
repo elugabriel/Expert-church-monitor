@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: expert-church
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: expert-church-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: BASE_DOMAIN
+        value: expertchurch.com
+      - key: SUPERADMIN_USERNAME
+        sync: false
+      - key: SUPERADMIN_PASSWORD
+        sync: false
+
+databases:
+  - name: expert-church-db
+    plan: basic-256mb

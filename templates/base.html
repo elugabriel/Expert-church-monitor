@@ -21,14 +21,14 @@
         <rect x="97" y="16" width="6" height="26" fill="#fff" opacity=".06"/>
         <rect x="90" y="24" width="20" height="6" fill="#fff" opacity=".06"/>
       </svg>
-      {% set sidebar_logo = church_logo_url(current_user.church) if current_user.role == 'admin' else None %}
+      {% set sidebar_logo = church_logo_url(current_user.church) if current_user.role in ('admin', 'user', 'unit_head') else None %}
       {% if sidebar_logo %}
         <img class="brand-logo" src="{{ sidebar_logo }}" alt="">
       {% else %}
         <img class="brand-logo" src="{{ url_for('static', filename='branding/company_logo.png') }}" alt="">
       {% endif %}
       <div>
-        <div class="brand-title">{{ current_user.church.name if current_user.role == 'admin' and current_user.church else app_name }}</div>
+        <div class="brand-title">{{ current_user.church.name if current_user.role in ('admin', 'user', 'unit_head') and current_user.church else app_name }}</div>
         <div class="brand-sub">Attendance System</div>
       </div>
     </div>
@@ -37,25 +37,73 @@
         <a class="nav-link {{ 'active' if request.path.startswith('/superadmin') else '' }}" href="{{ url_for('superadmin_dashboard') }}">
           <i class="bi bi-building"></i> Churches
         </a>
-      {% elif current_user.role == 'admin' %}
+      {% elif current_user.role == 'unit_head' %}
+        <a class="nav-link {{ 'active' if request.path.startswith('/dept') else '' }}" href="{{ url_for('dept_home', dept_id=current_user.department_id) }}">
+          <i class="bi bi-diagram-3"></i> My Unit
+        </a>
+      {% elif current_user.role in ('admin', 'user') %}
         <a class="nav-link {{ 'active' if request.path == url_for('admin_dashboard') else '' }}" href="{{ url_for('admin_dashboard') }}">
           <i class="bi bi-speedometer2"></i> Dashboard
         </a>
         <a class="nav-link {{ 'active' if request.path.startswith('/admin/members') else '' }}" href="{{ url_for('admin_members') }}">
           <i class="bi bi-people"></i> Members
         </a>
+        {% if has_feature('programs') %}
+        <a class="nav-link {{ 'active' if request.path.startswith('/admin/programs') else '' }}" href="{{ url_for('admin_programs') }}">
+          <i class="bi bi-calendar-event"></i> Programs
+        </a>
+        {% endif %}
+        {% if has_feature('departments') and current_user.role == 'admin' %}
+        <a class="nav-link {{ 'active' if request.path.startswith('/admin/departments') or request.path.startswith('/dept') else '' }}" href="{{ url_for('admin_departments') }}">
+          <i class="bi bi-diagram-3"></i> Departments
+        </a>
+        {% endif %}
+        {% if has_feature('service_analytics') %}
+        <a class="nav-link {{ 'active' if request.path.startswith('/admin/service-log') else '' }}" href="{{ url_for('admin_service_log') }}">
+          <i class="bi bi-journal-text"></i> Service Analytics
+        </a>
+        {% endif %}
+        {% if has_feature('birthday_messages') %}
+        <a class="nav-link {{ 'active' if request.path.startswith('/admin/birthdays') else '' }}" href="{{ url_for('admin_birthdays') }}">
+          <i class="bi bi-gift"></i> Birthdays
+        </a>
+        {% endif %}
+        {% if has_feature('first_timers') %}
+        <a class="nav-link {{ 'active' if request.path.startswith('/admin/first-timers') else '' }}" href="{{ url_for('admin_first_timers') }}">
+          <i class="bi bi-person-heart"></i> First Timers
+        </a>
+        {% endif %}
+        {% if has_feature('children') %}
         <a class="nav-link {{ 'active' if request.path.startswith('/admin/children') else '' }}" href="{{ url_for('admin_children') }}">
           <i class="bi bi-emoji-smile"></i> Children
         </a>
+        {% endif %}
         <a class="nav-link {{ 'active' if request.path.startswith('/admin/attendance') else '' }}" href="{{ url_for('admin_attendance_checklist') }}">
           <i class="bi bi-check2-square"></i> Attendance
         </a>
+        {% if has_feature('qr_checkin') %}
         <a class="nav-link {{ 'active' if request.path.startswith('/admin/qr-checkin') else '' }}" href="{{ url_for('admin_qr_checkin') }}">
           <i class="bi bi-qr-code"></i> QR Check-in
         </a>
+        {% endif %}
         <a class="nav-link {{ 'active' if request.path.startswith('/admin/reports') else '' }}" href="{{ url_for('admin_absentee_report') }}">
           <i class="bi bi-bar-chart"></i> Reports
         </a>
+        {% if has_feature('services') %}
+        <a class="nav-link {{ 'active' if request.path.startswith('/admin/reports/attendance') else '' }}" href="{{ url_for('admin_attendance_report') }}">
+          <i class="bi bi-bar-chart-line"></i> Attendance Report
+        </a>
+        {% if current_user.role == 'admin' %}
+        <a class="nav-link {{ 'active' if request.path.startswith('/admin/services') else '' }}" href="{{ url_for('admin_services') }}">
+          <i class="bi bi-calendar-week"></i> Services
+        </a>
+        {% endif %}
+        {% endif %}
+        {% if current_user.role == 'admin' %}
+        <a class="nav-link {{ 'active' if request.path.startswith('/admin/users') else '' }}" href="{{ url_for('admin_users') }}">
+          <i class="bi bi-person-badge"></i> Users
+        </a>
+        {% endif %}
         <a class="nav-link {{ 'active' if request.path.startswith('/admin/church-profile') else '' }}" href="{{ url_for('admin_church_profile') }}">
           <i class="bi bi-gear"></i> Settings
         </a>
@@ -86,14 +134,14 @@
           <div class="topbar-greeting">
             <div class="greeting-small">{{ greeting_word }},</div>
             <div class="greeting-name">{{ current_user.full_name or current_user.username }}</div>
-            {% if current_user.role == 'admin' and current_user.church %}
+            {% if current_user.role in ('admin', 'user', 'unit_head') and current_user.church %}
               <div class="greeting-sub">{{ current_user.church.name }} &middot; {{ today.strftime('%A, %d %B %Y') }}</div>
             {% endif %}
             <div class="topbar-tagline mt-2">Worship &middot; Fellowship &middot; Service</div>
           </div>
           <div class="topbar-actions">
             <span class="topbar-pill"><i class="bi bi-calendar3"></i> {{ today.strftime('%d %b %Y') }}</span>
-            {% if current_user.role == 'admin' %}
+            {% if current_user.role in ('admin', 'user') %}
             <a href="{{ url_for('admin_dashboard') }}" class="topbar-icon-btn" title="Birthdays this month">
               <i class="bi bi-bell"></i>
               {% if global_birthday_count %}<span class="ping-badge">{{ global_birthday_count }}</span>{% endif %}
@@ -102,6 +150,7 @@
             <div class="topbar-user">
               <div class="user-avatar">{{ (current_user.full_name or current_user.username)[0]|upper }}</div>
               <span class="user-name">{{ current_user.full_name or current_user.username }}</span>
+              <a href="{{ url_for('change_password') }}" class="text-muted me-2" title="Change password"><i class="bi bi-key"></i></a>
               <a href="{{ url_for('logout') }}" class="text-muted" title="Logout"><i class="bi bi-box-arrow-right"></i></a>
             </div>
           </div>

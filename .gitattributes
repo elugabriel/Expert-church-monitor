@@ -1,0 +1,3 @@
+# The server runs Linux, so these files must keep Unix line endings even when committed from Windows.
+*.sh text eol=lf
+deploy/* text eol=lf

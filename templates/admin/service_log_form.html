@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit Service Record' if log else 'New Service Record' }}{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="card p-4">
+      <h4 class="mb-3">{{ 'Edit Service Record' if log else 'New Service Record' }}</h4>
+      <form method="post">
+        <div class="row">
+          <div class="col-md-{{ 6 if multi else 12 }} mb-3">
+            <label class="form-label">Date of service *</label>
+            <input type="date" class="form-control" name="service_date" required
+                   value="{{ (log.service_date if log else today).isoformat() }}">
+          </div>
+          {% if multi %}
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Service</label>
+            <select class="form-select" name="service_id">
+              {% for s in services %}<option value="{{ s.id }}" {{ 'selected' if s.id == current_service.id else '' }}>{{ s.name }}</option>{% endfor %}
+            </select>
+          </div>
+          {% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Sermon topic</label>
+          <input type="text" class="form-control" name="sermon_topic" maxlength="200" value="{{ log.sermon_topic if log and log.sermon_topic else '' }}">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Bible passages</label>
+          <input type="text" class="form-control" name="bible_passages" maxlength="300" placeholder="e.g. John 3:1-16; Romans 8:28" value="{{ log.bible_passages if log and log.bible_passages else '' }}">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Preacher</label>
+          <input type="text" class="form-control" name="preacher" maxlength="120" value="{{ log.preacher if log and log.preacher else '' }}">
+        </div>
+
+        <h6 class="mt-4">Who handled each part of the service</h6>
+        <div class="row">
+          {% for s in segments %}
+          <div class="col-md-6 mb-3">
+            <label class="form-label">{{ s.name }}</label>
+            <input type="text" class="form-control" name="minister_{{ s.id }}" maxlength="120" value="{{ values.get(s.id, '') }}">
+          </div>
+          {% endfor %}
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Notes <small class="text-muted">(optional)</small></label>
+          <textarea class="form-control" name="notes" rows="3">{{ log.notes if log and log.notes else '' }}</textarea>
+        </div>
+        <button class="btn btn-primary" type="submit">Save Record</button>
+        <a href="{{ url_for('admin_service_log') }}" class="btn btn-light">Cancel</a>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

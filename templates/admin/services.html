@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Services{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <h3 class="mb-0"><i class="bi bi-calendar-week"></i> Services</h3>
+  <span class="text-muted">The services your church holds, e.g. First Service, Second Service, Midweek Bible Study. With more than one, attendance is marked for a chosen service and reports can be filtered by day and service.</span>
+</div>
+
+<div class="card p-3 mb-4">
+  <form method="post" class="row g-2 align-items-end">
+    <div class="col-md-5">
+      <label class="form-label">New service</label>
+      <input type="text" class="form-control" name="name" maxlength="100" placeholder="e.g. Second Service" required>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Usual day <small class="text-muted">(optional)</small></label>
+      <select class="form-select" name="weekday">
+        <option value="">Any day</option>
+        {% for name in weekday_names %}<option value="{{ loop.index0 }}">{{ name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3"><button class="btn btn-primary w-100" type="submit"><i class="bi bi-plus-lg"></i> Add</button></div>
+  </form>
+</div>
+
+<div class="card p-3">
+  <div class="table-responsive">
+  <table class="table align-middle">
+    <thead><tr><th>Service</th><th>Usual day</th><th></th></tr></thead>
+    <tbody>
+    {% for s in services %}
+      <tr>
+        <td colspan="2">
+          <form method="post" action="{{ url_for('admin_rename_service', service_id=s.id) }}" class="row g-2">
+            <div class="col-md-7"><input type="text" class="form-control form-control-sm" name="name" value="{{ s.name }}" maxlength="100" required></div>
+            <div class="col-md-3">
+              <select class="form-select form-select-sm" name="weekday">
+                <option value="">Any day</option>
+                {% for name in weekday_names %}<option value="{{ loop.index0 }}" {{ 'selected' if s.weekday == loop.index0 else '' }}>{{ name }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-2"><button class="btn btn-sm btn-outline-primary w-100">Save</button></div>
+          </form>
+        </td>
+        <td class="text-end" style="width:120px;">
+          {% if s.id == current_service.id %}<span class="badge bg-info text-dark">QR service</span>{% endif %}
+          {% if s.id not in used and services|length > 1 %}
+          <form method="post" action="{{ url_for('admin_delete_service', service_id=s.id) }}" class="d-inline"
+                onsubmit="return confirm('Delete {{ s.name }}?');">
+            <button class="btn btn-sm btn-outline-danger">Delete</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="text-muted small mb-0">Attendance recorded before you added services belongs to the first service in this list. A service with attendance can be renamed but not deleted.</p>
+</div>
+{% endblock %}
