@@ -742,6 +742,44 @@ def avatar_color_filter(member_id):
     return AVATAR_PALETTE[(member_id or 0) % len(AVATAR_PALETTE)]
 
 
+NOTE_SEPARATOR_RE = re.compile(r"[=\-_*~#]{5,}")
+
+
+@app.template_filter("note_blocks")
+def note_blocks_filter(text):
+    """Split free-text notes into paragraphs and dividers.
+
+    Notes are often pasted from WhatsApp or Word with '=====' lines between
+    sections; those become a divider instead of a long row of symbols.
+    Returns [("rule", None) | ("para", [line, ...]), ...].
+    """
+    blocks, para = [], []
+
+    def end_para():
+        if para:
+            blocks.append(("para", para[:]))
+            para.clear()
+
+    def add_rule():
+        end_para()
+        if blocks and blocks[-1][0] != "rule":
+            blocks.append(("rule", None))
+
+    for line in (text or "").splitlines():
+        pieces = NOTE_SEPARATOR_RE.split(line)
+        for i, piece in enumerate(pieces):
+            if i:
+                add_rule()
+            if piece.strip():
+                para.append(piece.strip())
+        if not line.strip():
+            end_para()
+    end_para()
+    while blocks and blocks[-1][0] == "rule":
+        blocks.pop()
+    return blocks
+
+
 def clean_subdomain(raw):
     """Return (subdomain, error). An empty value is fine and means 'no own address'."""
     value = (raw or "").strip().lower()

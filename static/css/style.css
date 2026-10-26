@@ -342,8 +342,9 @@ footer { color: #8a94a6; font-size: .85rem; }
   box-shadow: var(--card-shadow);
   margin-bottom: 1.25rem;
   overflow: hidden;
-  break-inside: avoid;
 }
+.sr-head { break-after: avoid; }
+.sr-minister, .sr-notes p { break-inside: avoid; }
 .sr-head {
   display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;
   padding: 1rem 1.25rem;
@@ -393,7 +394,9 @@ footer { color: #8a94a6; font-size: .85rem; }
   border-left: 3px solid var(--line);
   border-radius: 8px;
 }
-.sr-notes p { color: var(--ink); white-space: pre-line; }
+.sr-notes p { color: var(--ink); margin-bottom: .6rem; overflow-wrap: anywhere; }
+.sr-notes p:last-child { margin-bottom: 0; }
+.sr-notes-rule { margin: .8rem 0; border-color: #d4d4d4; opacity: 1; }
 
 @media (max-width: 767.98px) {
   .sr-body { grid-template-columns: 1fr; }
@@ -401,7 +404,10 @@ footer { color: #8a94a6; font-size: .85rem; }
   .sr-minister { grid-template-columns: 1fr; gap: .1rem; }
 }
 @media print {
+  body { background: #fff !important; }
   .sr-body { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
+  .service-record { overflow: visible; }
+  .sr-head, .sr-notes { background: #fff; }
 }
 
 /* Service Segments settings list */

@@ -54,7 +54,9 @@
   {% if log.notes %}
   <div class="sr-notes">
     <div class="sr-label">Notes</div>
-    <p class="mb-0">{{ log.notes }}</p>
+    {% for kind, lines in log.notes|note_blocks %}
+      {% if kind == 'rule' %}<hr class="sr-notes-rule">{% else %}<p>{% for line in lines %}{{ line }}{% if not loop.last %}<br>{% endif %}{% endfor %}</p>{% endif %}
+    {% endfor %}
   </div>
   {% endif %}
 </article>
