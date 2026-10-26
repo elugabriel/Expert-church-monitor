@@ -122,7 +122,14 @@ footer { color: #8a94a6; font-size: .85rem; }
   top: 0; bottom: 0; left: 0;
   z-index: 1040;
   transition: transform .25s ease;
+  /* Scroll the menu itself when it's taller than the screen (phones, tablets, short laptops) */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.2) transparent;
 }
+.sidebar > * { flex-shrink: 0; }
 
 .sidebar-brand {
   position: relative;
@@ -154,7 +161,7 @@ footer { color: #8a94a6; font-size: .85rem; }
   pointer-events: none;
 }
 
-.sidebar-nav { flex: 1; padding: .5rem .9rem; }
+.sidebar-nav { flex: 1 0 auto; padding: .5rem .9rem; }
 .sidebar-nav .nav-link {
   color: #d4d4d4;
   border-radius: 12px;
@@ -324,6 +331,99 @@ footer { color: #8a94a6; font-size: .85rem; }
 
 .ring-stat { display: flex; align-items: center; gap: .8rem; }
 .ring-stat svg { transform: rotate(-90deg); }
+
+/* ---------------------------------------------------------------------- */
+/* Service Analytics: one card per service record                         */
+/* ---------------------------------------------------------------------- */
+
+.service-record {
+  background: #fff;
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  margin-bottom: 1.25rem;
+  overflow: hidden;
+  break-inside: avoid;
+}
+.sr-head {
+  display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+  border-left: 4px solid var(--brand);
+  background: #fafafa;
+}
+.sr-date { font-weight: 700; font-size: 1.02rem; color: var(--ink); }
+.sr-service { color: var(--muted); font-size: .85rem; }
+.sr-head-right { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.sr-present {
+  display: flex; align-items: baseline; gap: .4rem;
+  background: var(--brand-soft); color: var(--brand-dark);
+  border-radius: 999px; padding: .25rem .8rem; font-size: .8rem; font-weight: 600;
+}
+.sr-present strong { font-size: 1rem; }
+.sr-actions { display: flex; gap: .4rem; }
+
+.sr-body {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+}
+.sr-body > section { padding: 1.1rem 1.25rem; }
+.sr-sermon { border-right: 1px solid var(--line); }
+.sr-label {
+  font-size: .7rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: .3rem;
+}
+.sr-topic { font-weight: 700; font-size: 1.05rem; color: var(--ink); }
+
+.sr-ministers { margin: 0; }
+.sr-minister {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  padding: .55rem 0;
+  border-bottom: 1px dashed var(--line);
+}
+.sr-minister:last-child { border-bottom: none; }
+.sr-minister dt { font-weight: 500; color: var(--muted); font-size: .88rem; }
+.sr-minister dd { margin: 0; font-weight: 600; color: var(--ink); }
+
+.sr-notes {
+  margin: 0 1.25rem 1.1rem;
+  padding: .8rem 1rem;
+  background: #fafafa;
+  border-left: 3px solid var(--line);
+  border-radius: 8px;
+}
+.sr-notes p { color: var(--ink); white-space: pre-line; }
+
+@media (max-width: 767.98px) {
+  .sr-body { grid-template-columns: 1fr; }
+  .sr-sermon { border-right: none; border-bottom: 1px solid var(--line); }
+  .sr-minister { grid-template-columns: 1fr; gap: .1rem; }
+}
+@media print {
+  .sr-body { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
+}
+
+/* Service Segments settings list */
+.segment-row {
+  display: flex; align-items: center; gap: .75rem;
+  padding: .75rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.segment-row:last-of-type { border-bottom: none; }
+.segment-num {
+  flex-shrink: 0;
+  width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--brand-soft); color: var(--brand-dark); font-weight: 700; font-size: .85rem;
+}
+.segment-row .segment-rename { flex: 1; display: flex; gap: .5rem; min-width: 0; }
+.segment-row .segment-rename .form-control { min-width: 0; }
+@media (max-width: 575.98px) {
+  .segment-row { flex-wrap: wrap; }
+  .segment-row .segment-rename { flex-basis: calc(100% - 42px); }
+  .segment-row .segment-remove { margin-left: 42px; }
+}
 
 @media (max-width: 991.98px) {
   .sidebar { transform: translateX(-100%); }

@@ -17,18 +17,23 @@
 </div>
 
 <div class="card p-3">
+  <div class="d-flex justify-content-between align-items-center mb-1">
+    <h6 class="mb-0">Segments, in service order</h6>
+    <span class="text-muted small">{{ segments|length }} segment{{ '' if segments|length == 1 else 's' }}</span>
+  </div>
   {% for s in segments %}
-  <div class="row g-2 align-items-center mb-2">
-    <form method="post" action="{{ url_for('admin_rename_segment', segment_id=s.id) }}" class="col-md-9 d-flex gap-2">
-      <input type="text" class="form-control form-control-sm" name="name" value="{{ s.name }}" maxlength="120" required>
-      <button class="btn btn-sm btn-outline-primary">Save</button>
+  <div class="segment-row">
+    <span class="segment-num">{{ loop.index }}</span>
+    <form method="post" action="{{ url_for('admin_rename_segment', segment_id=s.id) }}" class="segment-rename">
+      <input type="text" class="form-control" name="name" value="{{ s.name }}" maxlength="120" required aria-label="Segment {{ loop.index }} name">
+      <button class="btn btn-outline-primary text-nowrap"><i class="bi bi-check2"></i> Save</button>
     </form>
-    <form method="post" action="{{ url_for('admin_delete_segment', segment_id=s.id) }}" class="col-md-3 text-end"
+    <form method="post" action="{{ url_for('admin_delete_segment', segment_id=s.id) }}" class="segment-remove"
           onsubmit="return confirm('Remove this segment? Names already logged against it are removed too.');">
-      <button class="btn btn-sm btn-outline-danger">Remove</button>
+      <button class="btn btn-outline-danger text-nowrap"><i class="bi bi-trash"></i> Remove</button>
     </form>
   </div>
   {% endfor %}
-  <p class="text-muted small mb-0 mt-2">Renaming keeps the history. Removing a segment also removes the names logged against it in past records.</p>
+  <p class="text-muted small mb-0 mt-3 pt-3 border-top">Renaming keeps the history. Removing a segment also removes the names logged against it in past records.</p>
 </div>
 {% endblock %}

@@ -38,31 +38,19 @@
   </p>
   {% endif %}
 
-  <div class="table-responsive">
-  <table class="table table-sm align-top">
-    <thead><tr><th>Date</th><th>Service</th><th>Sermon and passages</th><th>Preacher</th><th>Ministers</th><th>Present</th></tr></thead>
-    <tbody>
-    {% for log in logs %}
-      <tr>
-        <td class="text-nowrap">{{ log.service_date.strftime('%a %d %b %Y') }}</td>
-        <td>{{ log.service.name }}</td>
-        <td><strong>{{ log.sermon_topic or '-' }}</strong>{% if log.bible_passages %}<div class="small">{{ log.bible_passages }}</div>{% endif %}
-          {% if log.notes %}<div class="small text-muted">{{ log.notes }}</div>{% endif %}</td>
-        <td>{{ log.preacher or '-' }}</td>
-        <td class="small">{% for m in log.ministers|sort(attribute='segment_id') %}<div>{{ m.segment.name }}: {{ m.minister }}</div>{% else %}-{% endfor %}</td>
-        <td>{{ attendance[loop.index0] }}</td>
-      </tr>
-    {% else %}
-      <tr><td colspan="6" class="text-center text-muted py-4">No service records in this range.</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  </div>
+  {% for log in logs %}
+    {% with present=attendance[loop.index0], show_service=True, show_actions=False %}
+      {% include "admin/_service_record.html" %}
+    {% endwith %}
+  {% else %}
+    <div class="card p-4 text-center text-muted">No service records in this range.</div>
+  {% endfor %}
 </div>
 <style>
   @media print {
     .sidebar, .topbar, footer, .alert, .no-print { display: none !important; }
     .main-area, .page-body { margin: 0 !important; padding: 0 !important; }
+    .service-record { box-shadow: none !important; border: 1px solid #d4d4d4; }
   }
 </style>
 {% endblock %}

@@ -1,0 +1,60 @@
+{# One service record laid out as a card. Expects: log, present, show_service, show_actions #}
+<article class="service-record">
+  <header class="sr-head">
+    <div>
+      <div class="sr-date">{{ log.service_date.strftime('%A, %d %B %Y') }}</div>
+      {% if show_service %}<div class="sr-service">{{ log.service.name }}</div>{% endif %}
+    </div>
+    <div class="sr-head-right">
+      <div class="sr-present"><span>Present</span><strong>{{ present }}</strong></div>
+      {% if show_actions %}
+      <div class="sr-actions no-print">
+        <a href="{{ url_for('admin_edit_service_log', log_id=log.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Edit</a>
+        {% if current_user.role == 'admin' %}
+        <form method="post" action="{{ url_for('admin_delete_service_log', log_id=log.id) }}" class="d-inline"
+              onsubmit="return confirm('Delete this service record?');">
+          <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Delete</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </header>
+
+  <div class="sr-body">
+    <section class="sr-sermon">
+      <div class="sr-label">Sermon</div>
+      <div class="sr-topic">{{ log.sermon_topic or 'No topic recorded' }}</div>
+      {% if log.bible_passages %}
+        <div class="sr-label mt-3">Bible passages</div>
+        <div>{{ log.bible_passages }}</div>
+      {% endif %}
+      <div class="sr-label mt-3">Preacher</div>
+      <div>{{ log.preacher or '-' }}</div>
+    </section>
+
+    <section class="sr-ministers-wrap">
+      <div class="sr-label">Ministers</div>
+      {% set ministers = log.ministers|sort(attribute='segment_id') %}
+      {% if ministers %}
+      <dl class="sr-ministers">
+        {% for m in ministers %}
+        <div class="sr-minister">
+          <dt>{{ m.segment.name }}</dt>
+          <dd>{{ m.minister }}</dd>
+        </div>
+        {% endfor %}
+      </dl>
+      {% else %}
+      <div class="text-muted">No ministers recorded</div>
+      {% endif %}
+    </section>
+  </div>
+
+  {% if log.notes %}
+  <div class="sr-notes">
+    <div class="sr-label">Notes</div>
+    <p class="mb-0">{{ log.notes }}</p>
+  </div>
+  {% endif %}
+</article>
